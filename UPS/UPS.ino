@@ -92,6 +92,7 @@ String dataJson()
   js.Var("t", (uint32_t)now());
   int sig = WiFi.RSSI();
   js.Var("rssi", sig);
+  js.Var("connected", binClientID);
   return js.Close();
 }
 
@@ -229,18 +230,11 @@ void onBinEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEvent
       binClientID = client->id();
       client->binary((uint8_t*)&binPayload, sizeof(binPayload));
       client->ping();
-      {
-        String s = "bin client ";
-        s += binClientID;
-        WsSend(s);
-      }
       break;
     case WS_EVT_DISCONNECT:    //client disconnected
-      WsSend("bin disc");
       binClientID = 0;
       break;
     case WS_EVT_ERROR:    //error was received from the other end
-      WsSend("bin err");
       binClientID = 0;
       break;
     case WS_EVT_PONG:    //pong message was received (in response to a ping request maybe)
