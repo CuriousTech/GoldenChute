@@ -30,13 +30,11 @@ SOFTWARE.
 #include <TimeLib.h> // https://github.com/PaulStoffregen/Time
 #include <UdpTime.h> // https://github.com/CuriousTech/ESP07_WiFiGarageDoor/tree/master/libraries/UdpTime
 #include <JsonParse.h> //https://github.com/CuriousTech/ESP-HVAC/tree/master/Libraries/JsonParse
-#include <Wire.h>
 #include <ArduinoOTA.h>
 #include <ESPmDNS.h>
 #include "Prefs.h"
 #include "pages.h"
 #include "jsonstring.h"
-#include "uriString.h"
 
 #define CS_PIN  4
 #define DIN_PIN 2
