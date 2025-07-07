@@ -42,7 +42,7 @@ function openSocket(){
       break
     case 'state':
       dt=new Date(d.t*1000)
-      a.time.innerHTML=dt.toLocaleTimeString()+' &nbsp; &nbsp; '+d.rssi+'dB  &nbsp; '
+      a.topbar.innerHTML=((+d.connected)?'PC Connected ':'PC Disonnected')+' &nbsp; '+dt.toLocaleTimeString()+' &nbsp; &nbsp; '+d.rssi+'dB  &nbsp; '
       break
     case 'alert':
       alert(d.text)
@@ -125,7 +125,7 @@ if(key!=null) document.getElementById('myKey').value=key
 openSocket()
 }">
 <table width=310>
-<tr><td><div id='time'></div></td><td> <div id='ctr'></div></td></tr>
+<tr><td><div id='topbar'></div></td></tr>
 
 <tr><td>
   <input type="button" value="SHUTDOWN" onClick="{shutdown()}"><input type="button" value="HIBERNATE" onClick="{hibernate()}">
