@@ -25,6 +25,7 @@ SOFTWARE.
 
 // Build with Arduino IDE 1.8.19, ESP32 2.0.14 or 3.2.0
 // Partition: Default 4MB with anything
+// USB CDC On Boot: Enabled for serial ooutput over USB
 
 #include <ESPAsyncWebServer.h> // https://github.com/ESP32Async/ESPAsyncWebServer (3.7.2) and AsyncTCP (3.4.4)
 #include <TimeLib.h> // https://github.com/PaulStoffregen/Time
@@ -280,9 +281,26 @@ void ICACHE_RAM_ATTR CS_ISR() // CS pulls down before first clock, each 13 bits 
   bitCnt = 0;
 }
 
+void sendSerialBlock()
+{
+  uint8_t block[sizeof(upsData) + 2];
+
+  memcpy(block + 1, (uint8_t*)&binPayload, sizeof(upsData));
+  block[0] = 0xAA; // Header key
+
+  uint8_t sum = 0;
+  for(uint8_t i = 0; i < sizeof(upsData); i++)
+  {
+    sum += block[i + 1];
+  }
+  block[sizeof(upsData)+1] = sum;
+  Serial.write(block, sizeof(block) );
+}
+
 void setup()
 {
-  ets_printf("Starting\r\n");
+  Serial.begin(115200);
+
   pinMode(DIN_PIN, INPUT);
   pinMode(SCK_PIN, INPUT);
   pinMode(CS_PIN, INPUT);
@@ -384,6 +402,8 @@ void loop()
   
       if(binClientID) // send to Windows Goldenchute client
         wsb.binary(binClientID, (uint8_t*)&binPayload, sizeof(binPayload));
+
+      sendSerialBlock();
     }
   }
 
