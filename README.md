@@ -9,7 +9,8 @@ The top is the web page for remote access, and the bottom is the Windows app.
 
 This mod requires opening the case of the UPS and plugging in a small board inline with the front display. It's a segmented display with SPI interface, so the ESP32 decodes all the bits and translates them to something usable. The data is only sent to the display when the power button is short-pressed, so this also simulates the button. The 5V power for the ESP32 needs to be external since the display 5V is only on when the display is powered, so run a USB cable to the rear panel and cut a small notch so the case can slide back on, and connect to PC or USB power supply (connected to the UPS, so it's powered on battery).  
   
-Pics soon. I promise. The revised board isn't done yet. The 2-pin connector just doesn't clear the ESP32 module well.  
+Pics soon. I promise.
+[PCB on OSHPark](https://oshpark.com/shared_projects/TjqZXsvM)  
   
 **Parts needed:**  
 -  ESP32-C3-super mini  
