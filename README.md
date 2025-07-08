@@ -14,12 +14,12 @@ Pics soon. I promise.
   
 **Parts needed:**  
 -  ESP32-C3-super mini  
--  G3VM-61GR2 (SSR)  
+-  G3VM-61GR2 (SSR) or AQY282SZ or AQY282S (cheaper)  
 -  200 ohm 0805 resistor  
 -  7-pin 0.1" pinheader M (JST-XX would be better, not entirely sure which one yet)  
 -  7-pin 0.1" pinheader F  
--  2-pin connector M (some kind of JST)  
--  2-pin connector F  
+-  2-pin 0.1" connector M (some kind of JST)  
+-  2-pin 0.1" connector F + 2 wires (4-5 inches) Note: The button is non-polarized  
   
 **Windows app:**  
 Extract the exe and move it to somewhere like C:\Goldenamte.  
