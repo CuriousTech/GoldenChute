@@ -177,12 +177,16 @@ void jsonCallback(int16_t iName, int iValue, char *psValue)
       {
         static char data[] = "HIBR";
         wsb.binary(binClientID, data, 4);
+        static uint8_t data2[] = {0xAB, 'H','I','B','R'};
+        Serial.write(data2, 5);
       }
       break;
     case 3: // shutdown
       {
         static char data[] = "SHDN";
         wsb.binary(binClientID, data, 4);
+        static uint8_t data2[] = {0xAB, 'S','H','D','N'};
+        Serial.write(data2, 5);
       }
       break;
   }
