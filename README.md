@@ -27,6 +27,5 @@ Right click on the exe, and select "Show more Options" then select "Create short
 Double-click to run the app.  Go to the tray, and right click the icon for the menu. Select "Settings" and enter the IP address of the ESP32 device such as "192.168.0.100"  
 If it connects, there should be a small red circle in the top left of the app. This will blink when data is recieved.  
 Clicking on the top-right corner of the app will hide it.  
-Other settings: COM Port (not used yet), and % to shut down. 100% is immediate, and 0% is never. There is a 10 second delay when it reaches the desired %, then it will hibernate or hibrid-sleep if that is set up properly, otherwise it will shut down. The wweb page also allows manual remote shutdown/hibernate. Test it once to esnure it works properly.  
-
-**Note:** This first version of the app doesn't reconnect on lost connections. It will be flushed out soon, as well as indication of connection on the web page.  
+Other settings: COM Port (don't use if you have an IP address set. Note: using serial will cause the ESP32 to reset every time the app exits), and % to shut down. 100% is immediate, and 0% is never. There is a 10 second delay when it reaches the desired %, then it will hibernate or hibrid-sleep if that is set up properly, otherwise it will shut down. The wweb page also allows manual remote shutdown/hibernate. Test it once to esnure it works properly.  
+  
