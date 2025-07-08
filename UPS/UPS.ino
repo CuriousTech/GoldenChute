@@ -67,23 +67,31 @@ bool bConfigDone = false;
 bool bStarted = false;
 uint32_t connectTimer;
 
+struct flagBits{
+  uint16_t OnUPS:1;
+  uint16_t OnAC:1;
+  uint16_t battDisplay:3; // 0-5
+  uint16_t battLevel:4; // 0-10
+  uint16_t error:7; // 01-99 probably
+};
+
 struct upsData
 {
-  uint8_t VoltsIn, VoltsOut;
-  uint16_t WattsIn, WattsOut;
-  bool bOnUPS;
-  bool bOnAC;
-  uint8_t battDisplay; // 0-5
-  uint8_t battLevel; // 0-10
-  uint8_t error; // 01-99 probably
-  uint16_t res[5];
-};
+  uint8_t head;
+  uint8_t VoltsIn;
+  uint8_t VoltsOut;
+  uint16_t WattsIn;
+  uint16_t WattsOut;
+  flagBits b;
+  uint8_t sum;
+}; // 10 bytes
 
 upsData binPayload;
 
+// ISR working mem
 volatile uint16_t ups_value;
 volatile uint16_t bitCnt;
-volatile uint8_t ups_nibble[32];
+volatile uint8_t ups_nibble[32]; // valid is 0-29, but the addr could hit 31, so be safe
 volatile bool bReady;
 
 String dataJson()
@@ -100,15 +108,15 @@ String dataJson()
 String statusJson()
 {
   jsonString js("data");
-  js.Var("AC", binPayload.bOnAC);
-  js.Var("UPS", binPayload.bOnUPS);
+  js.Var("AC", binPayload.b.OnAC);
+  js.Var("UPS", binPayload.b.OnUPS);
   js.Var("voltsIn", binPayload.VoltsIn);
   js.Var("wattsIn", binPayload.WattsIn);
   js.Var("voltsOut", binPayload.VoltsOut);
   js.Var("wattsOut", binPayload.WattsOut);
-  js.Var("BATT", binPayload.battDisplay);
-  js.Var("LVL", binPayload.battLevel);
-  js.Var("error", binPayload.error);
+  js.Var("BATT", binPayload.b.battDisplay);
+  js.Var("LVL", binPayload.b.battLevel);
+  js.Var("error", binPayload.b.error);
   return js.Close();
 }
 
@@ -275,26 +283,21 @@ void ICACHE_RAM_ATTR CLK_ISR()
   }
 }
 
-void ICACHE_RAM_ATTR CS_ISR() // CS pulls down before first clock, each 13 bits of 30 values
+void ICACHE_RAM_ATTR CS_ISR() // CS pulls down before first clock of the 13 bits
 {
   ups_value = 0; // clear next entry
   bitCnt = 0;
 }
 
-void sendSerialBlock()
+// Do a simple checksum and set the head value
+void checksumData()
 {
-  uint8_t block[sizeof(upsData) + 2];
-
-  memcpy(block + 1, (uint8_t*)&binPayload, sizeof(upsData));
-  block[0] = 0xAA; // Header key
-
+  uint8_t *pData = (uint8_t *)&binPayload;
   uint8_t sum = 0;
-  for(uint8_t i = 0; i < sizeof(upsData); i++)
-  {
-    sum += block[i + 1];
-  }
-  block[sizeof(upsData)+1] = sum;
-  Serial.write(block, sizeof(block) );
+  for(uint8_t i = 1; i < sizeof(upsData) - 2; i++)
+    sum += pData[i];
+  binPayload.sum = sum;
+  binPayload.head = 0xAA;
 }
 
 void setup()
@@ -398,12 +401,14 @@ void loop()
 
     if(bValid)
     {
+      checksumData(); // prepare it for transmit
+
       WsSend( statusJson() ); // send to web page or other websocket clients
   
       if(binClientID) // send to Windows Goldenchute client
         wsb.binary(binClientID, (uint8_t*)&binPayload, sizeof(binPayload));
 
-      sendSerialBlock();
+      Serial.write((uint8_t*)&binPayload, sizeof(binPayload) );
     }
   }
 
@@ -415,7 +420,7 @@ void loop()
     static uint8_t nSSRsecs = 1;
     if(--nSSRsecs == 0)
     {
-      if(binPayload.bOnUPS == false) // display stays on when on backup
+      if(binPayload.b.OnUPS == 0) // display stays on when on backup
         bPushSSR = true;
       nSSRsecs = 58;
     }
@@ -486,14 +491,14 @@ bool decodeSegments()
 
   if(convertWDig(2) == 10) // U## error display
   {
-    binPayload.error = (convertWDig(4) * 10) + convertWDig(6);
+    binPayload.b.error = (convertWDig(4) * 10) + convertWDig(6);
     return true;
   }
 
-  binPayload.error = 0;
+  binPayload.b.error = 0;
 
-  binPayload.bOnUPS = (ups_nibble[18] & 8) ? true:false;
-  binPayload.bOnAC = (ups_nibble[25] & 8) ? true:false;
+  binPayload.b.OnUPS = (ups_nibble[18] & 8) ? true:false;
+  binPayload.b.OnAC = (ups_nibble[25] & 8) ? true:false;
 
   binPayload.VoltsIn = convertVDig(24) + ( convertVDig(26) * 10) + (convertVDig(28) * 100);
   binPayload.VoltsOut = convertVDig(17) + ( convertVDig(19) * 10) + (convertVDig(21) * 100);
@@ -501,21 +506,21 @@ bool decodeSegments()
   binPayload.WattsIn = (convertWDig(0) * 1000) + (convertWDig(2) * 100) + (convertWDig(4) * 10) + convertWDig(6);
   binPayload.WattsOut = (convertWDig(9) * 1000) + (convertWDig(11) * 100) + (convertWDig(13) * 10) + convertWDig(15);
 
-  if(ups_nibble[9] & 1) binPayload.battDisplay = 5;
-  else if(ups_nibble[8] & 1) binPayload.battDisplay = 4;
-  else if(ups_nibble[8] & 2) binPayload.battDisplay = 3;
-  else if(ups_nibble[8] & 4) binPayload.battDisplay = 2;
-  else if(ups_nibble[8] & 8) binPayload.battDisplay = 1;
-  else binPayload.battDisplay = 0;
+  if(ups_nibble[9] & 1) binPayload.b.battDisplay = 5;
+  else if(ups_nibble[8] & 1) binPayload.b.battDisplay = 4;
+  else if(ups_nibble[8] & 2) binPayload.b.battDisplay = 3;
+  else if(ups_nibble[8] & 4) binPayload.b.battDisplay = 2;
+  else if(ups_nibble[8] & 8) binPayload.b.battDisplay = 1;
+  else binPayload.b.battDisplay = 0;
 
-  binPayload.battLevel = binPayload.battDisplay * 2;
+  binPayload.b.battLevel = binPayload.b.battDisplay * 2;
 
-  if(lastBattDisp != binPayload.battDisplay) // half a level alternates (blinking)
+  if(lastBattDisp != binPayload.b.battDisplay) // half a level alternates (blinking)
   {
-    binPayload.battLevel = max(lastBattDisp, binPayload.battDisplay) * 2 - 1;
+    binPayload.b.battLevel = max(lastBattDisp, (uint8_t)binPayload.b.battDisplay) * 2 - 1;
   }
     
-  lastBattDisp = binPayload.battDisplay;
+  lastBattDisp = binPayload.b.battDisplay;
 
   if(binPayload.VoltsIn == 0 && binPayload.VoltsOut == 0) // blank display glitch
     return false;
@@ -559,7 +564,7 @@ uint8_t convertWDig(uint8_t n)
     case 0b0000111: return 7;
     case 0b1111111: return 8;
     case 0b0111111: return 9;
-    case 0b1011110: return 10; // U
+    case 0b1011110: return 10; // U the dredded error display
   }
   return 0;
 }
@@ -576,7 +581,7 @@ SEG    COM  2   1  0
 00001  1D  1C  1B  1A
 00002  2E  2G  2F  XX  // XX = off on UPS
 00003  2D  2C  2B  2A
-00004  3E  3G  3F  XX
+00004  3E  3G  3F  XX  //  2 of these XX are VAC left and right
 00005  3D  3C  3B  3A
 00006  4E  4G  4F   W
 00007  4D  4C  4B  4A
