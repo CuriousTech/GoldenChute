@@ -24,7 +24,7 @@ Pics soon. I promise. The revised board isn't done yet. The 2-pin connector just
 Extract the exe and move it to somewhere like C:\Goldenamte.  
 Right click on the exe, and select "Show more Options" then select "Create shortcut" then move the shortcut to:  
   C:\Users\[Your Account]\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup  
-Double-click to run the app.  Go to the tray, and right click the icon for the menu. Select "Settings" and enter the IP address of the ESP32 device such as "192.168.0.100"  
+Double-click to run the app.  Go to the tray, and right click the icon for the menu. Select "Settings" and enter the IP address of the ESP32 device in the format "192.168.xxx.xxx" which you can find in the Arduino IDE ports, named UPS (IP).  
 If it connects, there should be a small red circle in the top left of the app. This will blink when data is recieved.  
 Clicking on the top-right corner of the app will hide it.  
 Other settings: COM Port (don't use if you have an IP address set. Note: using serial will cause the ESP32 to reset every time the app exits), and % to shut down. 100% is immediate, and 0% is never. There is a 10 second delay when it reaches the desired %, then it will hibernate or hibrid-sleep if that is set up properly, otherwise it will shut down. The wweb page also allows manual remote shutdown/hibernate. Test it once to esnure it works properly.  
