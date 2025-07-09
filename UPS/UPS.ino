@@ -28,8 +28,7 @@ SOFTWARE.
 // USB CDC On Boot: Enabled for serial ooutput over USB
 
 #include <ESPAsyncWebServer.h> // https://github.com/ESP32Async/ESPAsyncWebServer (3.7.2) and AsyncTCP (3.4.4)
-#include <TimeLib.h> // https://github.com/PaulStoffregen/Time
-#include <UdpTime.h> // https://github.com/CuriousTech/ESP07_WiFiGarageDoor/tree/master/libraries/UdpTime
+#include <time.h>
 #include <JsonParse.h> //https://github.com/CuriousTech/ESP-HVAC/tree/master/Libraries/JsonParse
 #include <ArduinoOTA.h>
 #include <ESPmDNS.h>
@@ -43,15 +42,13 @@ SOFTWARE.
 #define LED     8
 #define SSR     6
 
-int serverPort = 80;
-
 bool bKeyGood;
 IPAddress lastIP;
 int nWrongPass;
 
 int8_t nWsConnected;
 
-AsyncWebServer server( serverPort );
+AsyncWebServer server( 80 );
 AsyncWebSocket ws("/ws"); // access at ws://[esp ip]/ws
 AsyncWebSocket wsb("/bin"); // binary websocket for Windows app
 uint32_t WsClientID;
@@ -61,7 +58,6 @@ void jsonCallback(int16_t iName, int iValue, char *psValue);
 JsonParse jsonParse(jsonCallback);
 
 Prefs prefs;
-UdpTime udpTime;
 
 bool bConfigDone = false;
 bool bStarted = false;
@@ -98,7 +94,7 @@ String dataJson()
 {
   jsonString js("state");
 
-  js.Var("t", (uint32_t)now());
+  js.Var("t", (uint32_t)time(nullptr));
   int sig = WiFi.RSSI();
   js.Var("rssi", sig);
   js.Var("connected", binClientID);
@@ -171,7 +167,8 @@ void jsonCallback(int16_t iName, int iValue, char *psValue)
         bKeyGood = true;
       break;
     case 1: // tzo
-      if(!prefs.tzo) prefs.tzo = iValue; // trick to get TZ
+      if(!prefs.tzo)
+        prefs.tzo = iValue; // trick to get TZ
       break;
     case 2: // hibernate
       {
@@ -190,6 +187,16 @@ void jsonCallback(int16_t iName, int iValue, char *psValue)
       }
       break;
   }
+}
+
+uint8_t Hour()
+{
+  struct tm timeinfo;
+
+  if(!getLocalTime(&timeinfo))
+    return 0;
+
+  return timeinfo.tm_hour;
 }
 
 void sendState()
@@ -325,10 +332,10 @@ void setup()
   }
   else
   {
-    ets_printf("No SSID. Waiting for EspTouch\r\n");
+    Serial.println("No SSID. Waiting for EspTouch");
     WiFi.beginSmartConfig();
   }
-  connectTimer = now();
+  connectTimer = time(nullptr);
 
   // attach AsyncWebSocket
   ws.onEvent(onWsEvent);
@@ -380,6 +387,7 @@ void loop()
 
   static uint32_t lastMSbtn;
   static bool bPushSSR;
+  static uint32_t lastMS;
 
   // button press simulator
   if(lastMSbtn) // release button SSR after 400ms
@@ -416,9 +424,9 @@ void loop()
     }
   }
 
-  if(sec_save != second()) // only do stuff once per second
+  if(millis() - lastMS >= 1000) // only do stuff once per second
   {
-    sec_save = second();
+    lastMS = millis();
 
     // simulate button press every ~60s or less (anything under will reset the timeout)
     static uint8_t nSSRsecs = 1;
@@ -437,36 +445,34 @@ void loop()
     {
       if( WiFi.smartConfigDone())
       {
-        ets_printf("SmartConfig set\r\n");
+        Serial.println("SmartConfig set");
         bConfigDone = true;
-        connectTimer = now();
+        connectTimer = time(nullptr);
         WiFi.SSID().toCharArray(prefs.szSSID, sizeof(prefs.szSSID)); // Get the SSID from SmartConfig or last used
         WiFi.psk().toCharArray(prefs.szSSIDPassword, sizeof(prefs.szSSIDPassword) );
         prefs.update();
       }
     }
+
     if(bConfigDone)
     {
       if(WiFi.status() == WL_CONNECTED)
       {
         if(!bStarted)
         {
-          ets_printf("WiFi Connected\r\n");
+          Serial.println("WiFi Connected");
           WiFi.mode(WIFI_STA);
           MDNS.begin( prefs.szName );
-          MDNS.addService("iot", "tcp", serverPort);
+          MDNS.addService("iot", "tcp", 80);
           bStarted = true;
-          udpTime.start();
+          configTime(0, 0, "pool.ntp.org");
         }
-        if(udpTime.check(0)) // get GMT time, no TZ
-        {
-        }
-        connectTimer = now();
+        connectTimer = time(nullptr);
       }
-      else if(now() - connectTimer > 10) // failed to connect or connection lost
+      else if(time(nullptr) - connectTimer > 10) // failed to connect or connection lost
       {
-        ets_printf("Connect failed. Starting SmartConfig\r\n");
-        connectTimer = now();
+        Serial.println("Connect failed. Starting SmartConfig");
+        connectTimer = time(nullptr);
         WiFi.mode(WIFI_AP_STA);
         WiFi.beginSmartConfig();
         bConfigDone = false;
@@ -474,13 +480,13 @@ void loop()
       }
     }
 
-    if(hour_save != hour())
+    if(hour_save != Hour())
     {
-      hour_save = hour();
+      hour_save = Hour();
+//    if(hour_save == 2) // todo: update time daily or nah?
+//      configTime(0, 0, "pool.ntp.org");
 
       prefs.update(); // check for any prefs changes and update
-      if(hour() == 2 && WiFi.status() == WL_CONNECTED)
-        udpTime.start(); // update time daily at DST change
     }
 
     // wrong password reject counter
