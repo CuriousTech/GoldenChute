@@ -51,6 +51,8 @@ int8_t nWsConnected;
 AsyncWebServer server( 80 );
 AsyncWebSocket ws("/ws"); // access at ws://[esp ip]/ws
 AsyncWebSocket wsb("/bin"); // binary websocket for Windows app
+//AsyncWebSocket wsb2("/other"); // Add some other WebSocket for alternate needs. Duplicate the wsb references for your format
+
 uint32_t WsClientID;
 uint32_t binClientID;
 
@@ -59,9 +61,10 @@ JsonParse jsonParse(jsonCallback);
 
 Prefs prefs;
 
-bool bConfigDone = false;
-bool bStarted = false;
+bool bConfigDone;
+bool bStarted;
 uint32_t connectTimer;
+bool bGMFormatSerial;
 
 struct flagBits{
   uint16_t OnUPS:1;
@@ -420,7 +423,14 @@ void loop()
       if(binClientID) // send to Windows Goldenchute client
         wsb.binary(binClientID, (uint8_t*)&binPayload, sizeof(binPayload));
 
-      Serial.write((uint8_t*)&binPayload, sizeof(binPayload) );
+      if(bGMFormatSerial)
+      {
+        Serial.write((uint8_t*)&binPayload, sizeof(binPayload) );        
+      }
+      else
+      {
+        // Make your own format, or emulate another UPS
+      }
     }
   }
 
@@ -492,6 +502,33 @@ void loop()
     // wrong password reject counter
     if (nWrongPass)
       nWrongPass--;
+  }
+
+  checkSerial();
+}
+
+// Check for incoming serial data
+void checkSerial()
+{
+  static uint8_t buffer[64];
+  static uint8_t bufIdx = 0;
+
+  while(Serial.available() > 0)
+  {
+    buffer[bufIdx] = Serial.read();
+    if(bufIdx < 64) bufIdx++;
+
+    // The Goldenamte Windows app will send this:
+    if(bufIdx == 4 && buffer[0] == 0xAA && buffer[1] == 'G' && buffer[2] == 'M' && buffer[3] == 0)
+    {
+      bufIdx = 0;
+      bGMFormatSerial = true;
+    }
+    else
+    {
+      // bGMFormatSerial = false;
+      // Some other app
+    }
   }
 }
 
