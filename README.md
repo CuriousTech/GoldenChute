@@ -7,7 +7,7 @@ This is a simple modification for the GoldeMate UPS to access the information di
   
 The top is the web page for remote access, and the bottom is the Windows app.  
 
-This mod requires opening the case of the UPS and plugging in a small board inline with the front display. It's a segmented display with SPI interface, so the ESP32 decodes all the bits and translates them to something usable. The data is only sent to the display when the power button is short-pressed, so this also simulates the button. The 5V power for the ESP32 needs to be external since the display 5V is only on when the display is powered, so run a USB cable to the rear panel and cut a small notch so the case can slide back on, and connect to PC or USB power supply (connected to the UPS, so it's powered on battery).  
+This mod requires opening the case of the UPS and plugging in a small board inline with the front display. It's a segmented display with SPI interface, so the ESP32 decodes all the bits and translates them to something usable. The data is only sent to the display when the power button is short-pressed, so this also simulates the button (in parallel). The 5V power for the ESP32 needs to be external since the display 5V is only on when the display is powered, so run a USB cable to the rear panel and cut a small notch so the case can slide back on, and connect to PC or USB power supply (connected to the UPS, so it's powered on battery).  
   
 Pics soon. I promise.
   
@@ -29,7 +29,7 @@ Double-click to run the app.  Go to the tray, and right click the icon for the m
 If it connects, there should be a small red circle in the top left of the app. This will blink when data is recieved. It's just a filled circle for serial.  
 Clicking on the top-right corner of the app will hide it.  
 Other settings: COM Port (don't use if you have an IP address set. Note: using serial will cause the ESP32 to reset every time the app exits).  
-Percent to shut down in 110% increments:  100% is immediate, and 0% is never. There is a 10 second delay when it reaches the desired %, then it will hibernate or hibrid-sleep if that is set up properly, otherwise it will shut down. The web page also allows manual remote shutdown/hibernate. Test it once to esnure it works properly.  
+Percent to shut down in 10% increments:  100% is immediate, and 0% is never. There is a 10 second delay when it reaches the desired %, then it will hibernate or hibrid-sleep if that is set up properly, otherwise it will shut down. The web page also allows manual remote shutdown/hibernate. Test it once to esnure it works properly.  
 Alerts currently just cause the window to popup and show red text over the "Input" label, such as "Serial timeout" or WebSocket disconnected"  
 
 
