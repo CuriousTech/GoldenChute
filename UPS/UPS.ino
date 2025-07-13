@@ -267,11 +267,6 @@ void onBinEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEvent
   }
 }
 
-void WsSend(String s)
-{
-  ws.textAll(s);
-}
-
 void alert(String txt)
 {
   jsonString js("alert");
@@ -417,8 +412,7 @@ void loop()
     if(bValid)
     {
       checksumData(); // prepare it for transmit
-
-      WsSend( statusJson() ); // send to web page or other websocket clients
+      ws.textAll( statusJson() ); // send to web page or other websocket clients
   
       if(binClientID) // send to Windows Goldenchute client
         wsb.binary(binClientID, (uint8_t*)&binPayload, sizeof(binPayload));
@@ -510,24 +504,27 @@ void loop()
 // Check for incoming serial data
 void checkSerial()
 {
-  static uint8_t buffer[64];
+  static uint8_t buffer[8];
   static uint8_t bufIdx = 0;
 
   while(Serial.available() > 0)
   {
     buffer[bufIdx] = Serial.read();
-    if(bufIdx < 64) bufIdx++;
+    if(bufIdx < 8) bufIdx++;
 
     // The Goldenamte Windows app will send this:
-    if(bufIdx == 4 && buffer[0] == 0xAA && buffer[1] == 'G' && buffer[2] == 'M' && buffer[3] == 0)
+    if(bufIdx == 4)
     {
-      bufIdx = 0;
-      bGMFormatSerial = true;
-    }
-    else
-    {
+      if( buffer[0] == 0xAA && buffer[1] == 'G' && buffer[2] == 'M' && buffer[3] == 0)
+      {
+        bGMFormatSerial = true;
+      }
+      else
+      {
       // bGMFormatSerial = false;
       // Some other app
+      }
+      bufIdx = 0;
     }
   }
 }
@@ -564,7 +561,7 @@ bool decodeSegments(upsData& payload)
      wOut[0] == 0xFF || wOut[1] == 0xFF || wOut[2] == 0xFF || wOut[3] == 0xFF)
     return false;
 
-  if(vIn[0] > 2 || vOut[0] > 2) // potential error maybe
+  if(vIn[2] > 2 || vOut[2] > 2) // potential error maybe
     return false;
 
   udata.VoltsIn = vIn[0] + ( vIn[1] * 10) + (vIn[2] * 100);
