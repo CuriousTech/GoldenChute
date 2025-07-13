@@ -20,6 +20,8 @@ Pics soon. I promise.
 -  XBH 7P 2.54mm or 7P 0.1" pinheader F  
 -  XBH 2P 2.54mm or 2P 0.1" connector M   
 -  XBH 2P 2.54mm or 2P 0.1" connector F + 2 wires (2-3 inches) Note: The button is non-polarized  
+
+Settings for router SSID and SSID password are in Prefs.h, as well as the remote password for web control. If they aren't set or the SSID changes, EspTouch can be used.  
   
 **Windows app:**  
 Extract the exe and move it to somewhere like C:\Goldenamte.  
@@ -28,11 +30,11 @@ Right click on the exe, and select "Show more Options" then select "Create short
 Double-click to run the app.  Go to the tray, and right click the icon for the menu. Select "Settings" and enter the IP address of the ESP32 device in the format "192.168.xxx.xxx" which you can find in the Arduino IDE ports, named UPS (IP).  
 If it connects, there should be a small red circle in the top left of the app. This will blink when data is recieved. It's just a filled circle for serial.  
 Clicking on the top-right corner of the app will hide it.  
-Other settings: COM Port (don't use if you have an IP address set. Note: using serial will cause the ESP32 to reset every time the app exits).  
-Percent to shut down in 10% increments:  100% is immediate, and 0% is never. There is a 10 second delay when it reaches the desired %, then it will hibernate or hibrid-sleep if that is set up properly, otherwise it will shut down. The web page also allows manual remote shutdown/hibernate. Test it once to esnure it works properly.  
+Other settings: COM Port (Note: using serial will cause the ESP32 to reset every time the app exits).  
+The radio buttons allow selecting either COM or websocket.  
+Percent to shut down in 10% increments:  100% is immediate, and 0% is never. There is a 10 second delay when it reaches the desired %, then it will hibernate or hibrid-sleep if that is set up properly, otherwise it will shut down. The web page also allows manual remote shutdown/hibernate. The password will need to be the same here as in Prefs.h  Test it once to esnure it works properly.  
 Alerts currently just cause the window to popup and show red text over the "Input" label, such as "Serial timeout" or WebSocket disconnected"  
-
-
+  
 Hide after start causes the window to hide 4 seconds after startup.  
 The outage log (top right area, hidden when small) is blank until an entry is created.  Entries are comma delimited lines saved in a file in the local exe folder, named ups_log.txt.  
 
