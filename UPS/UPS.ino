@@ -412,7 +412,7 @@ void loop()
   {
     bReady = false;
 
-    bool bValid = decodeSegments();
+    bool bValid = decodeSegments(binPayload);
 
     if(bValid)
     {
@@ -532,46 +532,72 @@ void checkSerial()
   }
 }
 
-bool decodeSegments()
+bool decodeSegments(upsData& payload)
 {
+  upsData udata;
+  uint8_t vIn[3];
+  uint8_t vOut[3];
+  uint8_t wIn[4];
+  uint8_t wOut[4];
   static uint8_t lastBattDisp;
 
   if(convertWDig(2) == 10) // U## error display
   {
-    binPayload.b.error = (convertWDig(4) * 10) + convertWDig(6);
+    udata.b.error = (convertWDig(4) * 10) + convertWDig(6);
+    payload = udata;
     return true;
   }
 
-  binPayload.b.error = 0;
+  udata.b.error = 0;
+  udata.b.OnUPS = (ups_nibble[18] & 8) ? true:false;
+  udata.b.OnAC = (ups_nibble[25] & 8) ? true:false;
 
-  binPayload.b.OnUPS = (ups_nibble[18] & 8) ? true:false;
-  binPayload.b.OnAC = (ups_nibble[25] & 8) ? true:false;
+  vIn[0]  = convertVDig(24); vIn[1]  = convertVDig(26); vIn[2]  = convertVDig(28);
+  vOut[0] = convertVDig(17); vOut[1] = convertVDig(19); vOut[2] = convertVDig(21);
+  wIn[0]  = convertWDig(0);  wIn[1]  = convertWDig(2);  wIn[2]  = convertWDig(4); wIn[3] = convertWDig(6);
+  wOut[0] = convertWDig(9);  wOut[1] = convertWDig(11); wOut[2] = convertWDig(13); wOut[3] = convertWDig(15);
 
-  binPayload.VoltsIn = convertVDig(24) + ( convertVDig(26) * 10) + (convertVDig(28) * 100);
-  binPayload.VoltsOut = convertVDig(17) + ( convertVDig(19) * 10) + (convertVDig(21) * 100);
-  
-  binPayload.WattsIn = (convertWDig(0) * 1000) + (convertWDig(2) * 100) + (convertWDig(4) * 10) + convertWDig(6);
-  binPayload.WattsOut = (convertWDig(9) * 1000) + (convertWDig(11) * 100) + (convertWDig(13) * 10) + convertWDig(15);
-
-  if(ups_nibble[9] & 1) binPayload.b.battDisplay = 5;
-  else if(ups_nibble[8] & 1) binPayload.b.battDisplay = 4;
-  else if(ups_nibble[8] & 2) binPayload.b.battDisplay = 3;
-  else if(ups_nibble[8] & 4) binPayload.b.battDisplay = 2;
-  else if(ups_nibble[8] & 8) binPayload.b.battDisplay = 1;
-  else binPayload.b.battDisplay = 0;
-
-  binPayload.b.battLevel = binPayload.b.battDisplay * 2;
-
-  if(lastBattDisp != binPayload.b.battDisplay) // half a level alternates (blinking)
-  {
-    binPayload.b.battLevel = max(lastBattDisp, (uint8_t)binPayload.b.battDisplay) * 2 - 1;
-  }
-    
-  lastBattDisp = binPayload.b.battDisplay;
-
-  if(binPayload.VoltsIn == 0 && binPayload.VoltsOut == 0) // blank display glitch
+  // invalid digit
+  if(vIn[0] == 0xFF || vIn[1] == 0xFF || vIn[2] == 0xFF ||
+     vOut[0] == 0xFF || vOut[1] == 0xFF || vOut[2] == 0xFF ||
+     wIn[0] == 0xFF || wIn[1] == 0xFF || wIn[2] == 0xFF || wIn[3] == 0xFF ||
+     wOut[0] == 0xFF || wOut[1] == 0xFF || wOut[2] == 0xFF || wOut[3] == 0xFF)
     return false;
 
+  if(vIn[0] > 2 || vOut[0] > 2) // potential error maybe
+    return false;
+
+  udata.VoltsIn = vIn[0] + ( vIn[1] * 10) + (vIn[2] * 100);
+  udata.VoltsOut = vOut[0] + ( vOut[1] * 10) + (vOut[2] * 100);
+  udata.WattsIn = (wIn[0] * 1000) + (wIn[1] * 100) + (wIn[2] * 10) + wIn[3];
+  udata.WattsOut = (wOut[0] * 1000) + (wOut[1] * 100) + (wOut[2] * 10) + wOut[3];
+
+  if(udata.VoltsIn == 0 && udata.VoltsOut == 0) // blank display glitch
+    return false;
+
+  uint8_t battBits = ups_nibble[8] | ( (ups_nibble[9] & 1) << 4);
+
+  switch(battBits)
+  {
+    case 0b00000: udata.b.battDisplay = 0; break;
+    case 0b00001: udata.b.battDisplay = 1; break;
+    case 0b00011: udata.b.battDisplay = 2; break;
+    case 0b00111: udata.b.battDisplay = 3; break;
+    case 0b01111: udata.b.battDisplay = 4; break;
+    case 0b11111: udata.b.battDisplay = 5; break;
+    default: return false; // anything else
+  }
+
+  udata.b.battLevel = udata.b.battDisplay * 2;
+
+  if(lastBattDisp != udata.b.battDisplay) // half a level alternates (blinking)
+  {
+    udata.b.battLevel = max(lastBattDisp, (uint8_t)udata.b.battDisplay) * 2 - 1;
+  }
+
+  lastBattDisp = udata.b.battDisplay;
+
+  payload = udata;
   return true;
 }
 
@@ -581,6 +607,7 @@ uint8_t convertVDig(uint8_t n)
 
   switch(dig)
   {    //  DFGEABC  
+    case 0b0000000: return 0; // blank
     case 0b1011111: return 0;
     case 0b0000110: return 1;
     case 0b0111101: return 2;
@@ -592,7 +619,7 @@ uint8_t convertVDig(uint8_t n)
     case 0b1111111: return 8;
     case 0b1101111: return 9;
   }
-  return 0;
+  return 0xFF; // invalid
 }
 
 uint8_t convertWDig(uint8_t n)
@@ -601,6 +628,7 @@ uint8_t convertWDig(uint8_t n)
 
   switch(dig)
   {     // EGFDCBA
+    case 0b0000000: return 0; // blank
     case 0b1011111: return 0;
     case 0b0000110: return 1;
     case 0b1101011: return 2;
@@ -613,7 +641,7 @@ uint8_t convertWDig(uint8_t n)
     case 0b0111111: return 9;
     case 0b1011110: return 10; // U the dredded error display
   }
-  return 0;
+  return 0xFF; // invalid
 }
 
 /*
