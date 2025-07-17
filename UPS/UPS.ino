@@ -24,8 +24,9 @@ SOFTWARE.
 // Goldenmate UPS with ESP32-C3-super mini
 
 // Build with Arduino IDE 1.8.19, ESP32 2.0.14 or 3.2.0
+// CPU Speed: Anything with WiFi
 // Partition: Default 4MB with anything
-// USB CDC On Boot: Enabled for serial ooutput over USB
+// USB CDC On Boot: Enabled for serial output over USB
 
 #include <ESPAsyncWebServer.h> // https://github.com/ESP32Async/ESPAsyncWebServer (3.7.2) and AsyncTCP (3.4.4)
 #include <time.h>
@@ -41,6 +42,8 @@ SOFTWARE.
 #define SCK_PIN 3
 #define LED     8
 #define SSR     6
+
+#define UPS_HEAD_ID 0xAA  // 0xAA = 1000VA, 0xAC = 1500VA
 
 bool bKeyGood;
 IPAddress lastIP;
@@ -306,7 +309,7 @@ void checksumData()
   for(uint8_t i = 1; i < sizeof(upsData) - 2; i++)
     sum += pData[i];
   binPayload.sum = sum;
-  binPayload.head = 0xAA;
+  binPayload.head = UPS_HEAD_ID;
 }
 
 void setup()
@@ -390,7 +393,7 @@ void loop()
   // button press simulator
   if(lastMSbtn) // release button SSR after 400ms
   {
-    if(millis() - lastMSbtn > 400)
+    if(millis() - lastMSbtn > 500)
     {
       digitalWrite(SSR, LOW);
     }
