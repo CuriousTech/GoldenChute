@@ -11,6 +11,8 @@ This mod requires opening the case of the UPS and plugging in a small board inli
   
 Pics soon. I promise.
   
+I beleve the first model had a push-on/push-off button and the display satayed on. For that model, all you need is the PCB, ESP32, and 7 pin connectors. Leave out the solid state relay, resistor and 2 pin connectors.  
+  
 **Parts needed:**  
 -  [PCB on OSHPark](https://oshpark.com/shared_projects/TjqZXsvM)  
 -  ESP32-C3-super mini  
