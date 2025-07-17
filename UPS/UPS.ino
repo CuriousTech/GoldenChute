@@ -43,7 +43,7 @@ SOFTWARE.
 #define LED     8
 #define SSR     6
 
-#define UPS_HEAD_ID 0xAA  // 0xAA = 1000VA, 0xAC = 1500VA
+#define UPS_MODEL 0 // 0 = 1000VA, 1 = 1500VA, 2 = 2000VA
 
 bool bKeyGood;
 IPAddress lastIP;
@@ -72,20 +72,22 @@ bool bGMFormatSerial;
 struct flagBits{
   uint16_t OnUPS:1;
   uint16_t OnAC:1;
+  uint16_t error:1; // WattsIn will be error #
+  uint16_t model:2; // 0 = 1000VA, 1 = 1500VA, 2 = 2000VA 
   uint16_t battDisplay:3; // 0-5
   uint16_t battLevel:4; // 0-10
-  uint16_t error:7; // 01-99 probably
+  uint16_t reserved:4;
 };
 
 struct upsData
 {
-  uint8_t head;
-  uint8_t VoltsIn;
-  uint8_t VoltsOut;
+  uint8_t  head;
+  flagBits b;
+  uint8_t  VoltsIn;
+  uint8_t  VoltsOut;
   uint16_t WattsIn;
   uint16_t WattsOut;
-  flagBits b;
-  uint8_t sum;
+  uint8_t  sum;
 }; // 10 bytes
 
 upsData binPayload;
@@ -309,7 +311,7 @@ void checksumData()
   for(uint8_t i = 1; i < sizeof(upsData) - 2; i++)
     sum += pData[i];
   binPayload.sum = sum;
-  binPayload.head = UPS_HEAD_ID;
+  binPayload.head = 0xAA;
 }
 
 void setup()
@@ -424,9 +426,17 @@ void loop()
       {
         Serial.write((uint8_t*)&binPayload, sizeof(binPayload) );        
       }
-      else
+      else if(binPayload.b.error == 0)
       {
-        // Make your own format, or emulate another UPS
+        // default: text "0,250,100" for not on battery, 250 watts, battery level 100%
+        // or make your own format, or emulate another UPS
+        String s = "";
+        s += (binPayload.b.OnUPS) ? 1:0;
+        s += ",";
+        s += String( binPayload.WattsOut );
+        s += ",";
+        s += String( binPayload.b.battLevel * 10 );
+        Serial.println(s);
       }
     }
   }
@@ -543,11 +553,13 @@ bool decodeSegments(upsData& payload)
 
   if(convertWDig(2) == 10) // U## error display
   {
-    udata.b.error = (convertWDig(4) * 10) + convertWDig(6);
+    udata.b.error = 1;
+    udata.WattsIn = (convertWDig(4) * 10) + convertWDig(6);
     payload = udata;
     return true;
   }
 
+  udata.b.model = UPS_MODEL;
   udata.b.error = 0;
   udata.b.OnUPS = (ups_nibble[18] & 8) ? true:false;
   udata.b.OnAC = (ups_nibble[25] & 8) ? true:false;
