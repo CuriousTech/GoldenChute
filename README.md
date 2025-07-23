@@ -15,11 +15,10 @@ I beleve the first model had a push-on/push-off button and the display satayed o
   
 **Parts needed:**  
 -  [PCB on OSHPark](https://oshpark.com/shared_projects/TjqZXsvM)  
--  ESP32-C3-super mini  
+-  [ESP32-C3-super mini](https://www.aliexpress.us/item/3256807353297685.html?spm=a2g0o.tesla.0.0.68bcQMQPQMQPhl&pdp_npi=5%40dis%21USD%21%242.70%21%240.99%21%21%21%21%21%40210318ec17532528750118282ee624%2112000041210885173%21btf%21%21%21%211%210&afTraceInfo=1005007539612437__pc__c_ppc_item_bridge_pc_jfy_wf__5EfmYTO__1753252875356&gatewayAdapt=glo2usa4itemAdapt)  
 -  AQY282S (SSR)  
--  200 ohm 0805 resistor  
--  XBH 7P 2.54mm or 7P 0.1" pinheader M [7 pin AliExpress](https://www.aliexpress.com/item/3256806815272828.html?spm=a2g0o.cart.0.0.59a838da1EfLxM&mp=1&pdp_npi=5%40dis%21USD%21USD%203.40%21USD%203.20%21%21USD%203.20%21%21%21%402101effb17521915717145693e67ce%2112000039009446985%21ct%21US%212963218209%21%211%210&_gl=1*11ywi8j*_gcl_dc*R0NMLjE3NTIxOTA3NTUuQ2p3S0NBand5YjNEQmhCbEVpd0FxWkxlNUoxOVp3bGNndjB2SXh4N3prNE1QM2pnOF9VN0RucFJGbnAxdDFMajE2RUM0SWNQN0tKamlCb0NDVm9RQXZEX0J3RQ..*_ga_VED1YSGNC7*czE3NTIxOTE1NzEkbzEkZzAkdDE3NTIxOTE1NzEkajYwJGwwJGgw)  
--  XBH 7P 2.54mm or 7P 0.1" pinheader F  
+-  1.2K ohm 0805 resistor  
+-  M & F JST-XH or [XHB](https://www.aliexpress.com/p/tesla-landing/index.html?UTABTest=aliabtest110188_5910&src=criteo&albch=criteo_New&acnt=criteo-B4&albcp=232508&device=pc&clickid=688081f42944a328ac413444d0863805_1753252340_3256806815272828&cto_pld=v5yJr7dcAABvALKgmy4wTg&aff_fcid=bcbb53245af5402988fd7376c89645a9-1753252356158-04892-UneMJZVf&aff_fsk=UneMJZVf&aff_platform=aaf&sk=UneMJZVf&aff_trace_key=bcbb53245af5402988fd7376c89645a9-1753252356158-04892-UneMJZVf&terminal_id=1a5a9f1087de44a890966b5bbd3921da&scenario=c_ppc_item_bridge&productId=3256806815272828&_immersiveMode=true&withMainCard=true&OLP=1094500108_f_group1&o_s_id=1094500108&afSmartRedirect=n) (clip type) 7P 2.54mm, or 7P 0.1" pinheader  
 -  2P 0.1" connector M 
 -  2P 0.1" connector F + 2 wires (2-3 inches) Note: The button is non-polarized  (The AliExpress above didn't fit the 2 pin)  (Dupont will work if nothing else)  
 
