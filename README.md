@@ -11,7 +11,7 @@ This mod requires opening the case of the UPS and plugging in a small board inli
   
 Pics soon. I promise.
   
-I beleve the first model had a push-on/push-off button and the display satayed on. For that model, all you need is the PCB, ESP32, and 7 pin connectors. Leave out the solid state relay, resistor and 2 pin connectors.  
+I beleve the first model had a push-on/push-off button and the display stayed on. For that model, all you need is the PCB, ESP32, and 7 pin connectors. Leave out the solid state relay, resistor and 2 pin connectors.  
   
 **Parts needed:**  
 -  [PCB on OSHPark](https://oshpark.com/shared_projects/TjqZXsvM)  
@@ -28,12 +28,16 @@ Settings for router SSID and SSID password are in Prefs.h, as well as the remote
 Extract the exe and move it to somewhere like C:\Goldenamte.  
 Right click on the exe, and select "Show more Options" then select "Create shortcut" then move the shortcut to:  
   C:\Users\[Your Account]\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup  
-Double-click to run the app.  Go to the tray, and right click the icon for the menu. Select "Settings" and enter the IP address of the ESP32 device in the format "192.168.xxx.xxx" which you can find in the Arduino IDE ports, named UPS (IP).  
-If it connects, there should be a small red circle in the top left of the app. This will blink when data is recieved. It's just a filled circle for serial.  
+Double-click to run the app.  
 Clicking on the top-right corner of the app will hide it.  
-Other settings: COM Port (Note: using serial will cause the ESP32 to reset every time the app exits).  
+**Settings:**  
+Go to the tray, and right click the icon for the menu. Select "Settings" and enter the IP address of the ESP32 device in the format "192.168.xxx.xxx" which you can find in the Arduino IDE ports, named UPS (IP).  
+If it connects, there should be a small red circle in the top left of the app. This will blink when data is recieved. It's just a filled circle for serial.  
+COM Port (Note: using serial will cause the ESP32 to reset every time the app exits).  
 The radio buttons allow selecting either COM or websocket.  
-Percent to shut down in 10% increments:  100% is immediate, and 0% is never. There is a 10 second delay when it reaches the desired %, then it will hibernate or hibrid-sleep if that is set up properly, otherwise it will shut down. The web page also allows manual remote shutdown/hibernate. The password will need to be the same here as in Prefs.h  Test it once to esnure it works properly.  
+Percent to shut down in 10% increments:  100% is immediate, and 0% is never. There is a 10 second delay when it reaches the desired %, then it will hibernate or hibrid-sleep if that is set up properly, otherwise it will shut down.  
+Skip seconds: 0 will add data to the chart every second (total 24 hours). 1 would be 48 hours, but miss every other second.  
+The web page also allows manual remote shutdown/hibernate. The password will need to be the same here as in Prefs.h  Test it once to esnure it works properly.  
 Alerts currently just cause the window to popup and show red text over the "Input" label, such as "Serial timeout" or WebSocket disconnected"  
   
 Hide after start causes the window to hide 4 seconds after startup.  
