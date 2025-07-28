@@ -321,6 +321,7 @@ void setup()
   pinMode(DIN_PIN, INPUT);
   pinMode(SCK_PIN, INPUT);
   pinMode(CS_PIN, INPUT);
+  pinMode(SSR, OUTPUT);
   prefs.init();
 
   strcpy(prefs.szPassword, "esp8266ct");
