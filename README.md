@@ -21,10 +21,11 @@ I beleve the first model had a push-on/push-off button and the display stayed on
 -  2P 0.1" connector F + 2 wires (2-3 inches) Note: The button is non-polarized  (The AliExpress above didn't fit the 2 pin)  (Dupont will work if nothing else)  
 
 ![UPS Board](ups.png)  
+  
+The female connector (XHB) even though I think XH would be better, needs pins or wire lead clippings crimped to make it solder to a PCB. I used pinheader pins. On the rev 1 board, I'll put the female on the outer end instead so the board is further from the edge. With this older one I had to solder the male connector first because I couldn't get to the back with the female one. Test fit them first to see the problem. The 2-pin connectors should be installed before the ESP32.   
+  
 ![Back](notch.jpg)  
-  
-The female connector (XHB) even though I think XH would be better, needs pins or wire lead clippings crimped to make it solder to a PCB. I used pinheader pins. On the rev 1 board, I'll put the female on the outer end instead so the board is further from the edge. With this older one I had to solder the male connector first because I couldn't get to the back with the female one in. Test fit them first to see the problem. The 2-pin connectors should be installed before the ESP32.   
-  
+Cut a notch in the rear panel to fit the USB cable.  
   
 Settings for router SSID and SSID password are in Prefs.h, as well as the remote password for web control. If they aren't set or the SSID changes, EspTouch can be used.  
   
