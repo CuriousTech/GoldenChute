@@ -38,8 +38,6 @@ function openSocket(){
   d=JSON.parse(evt.data)
   switch(d.cmd)
   {
-    case 'settings':
-      break
     case 'state':
       dt=new Date(d.t*1000)
       a.topbar.innerHTML=((+d.connected)?'PC Connected ':'PC Disonnected')+' &nbsp; '+dt.toLocaleTimeString()+' &nbsp; &nbsp; '+d.rssi+'dB  &nbsp; '
@@ -48,6 +46,8 @@ function openSocket(){
       alert(d.text)
       break
     case 'data':
+      dt=new Date(d.t*1000)
+      a.topbar.innerHTML=((+d.connected)?'PC Connected ':'PC Disonnected')+' &nbsp; '+dt.toLocaleTimeString()+' &nbsp; &nbsp; '+d.rssi+'dB  &nbsp; '
       upsState=d
       draw()
       break
