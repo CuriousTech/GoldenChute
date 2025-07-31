@@ -112,6 +112,10 @@ String dataJson()
 String statusJson()
 {
   jsonString js("data");
+  js.Var("t", (uint32_t)time(nullptr));
+  int sig = WiFi.RSSI();
+  js.Var("rssi", sig);
+  js.Var("connected", binClientID);
   js.Var("AC", binPayload.b.OnAC);
   js.Var("UPS", binPayload.b.OnUPS);
   js.Var("voltsIn", binPayload.VoltsIn);
@@ -386,6 +390,7 @@ void setup()
 void loop()
 {
   static uint8_t hour_save, sec_save;
+  static uint32_t sentMS;
 
   ArduinoOTA.handle();
 
@@ -414,12 +419,13 @@ void loop()
     bReady = false;
 
     bool bValid = decodeSegments(binPayload);
-
+   
     if(bValid)
     {
       checksumData(); // prepare it for transmit
+      sentMS = millis();
       ws.textAll( statusJson() ); // send to web page or other websocket clients
-  
+
       if(binClientID) // send to Windows Goldenchute client
         wsb.binary(binClientID, (uint8_t*)&binPayload, sizeof(binPayload));
 
@@ -455,8 +461,9 @@ void loop()
       nSSRsecs = 58;
     }
 
-    // send some basic info to web page (keepalive)
-    sendState();
+    // send some basic info to web page (keepalive) if no other data sent recently
+    if(millis() - sentMS > 1000)
+      sendState();
 
     // WiFi async connect stuff
     if(!bConfigDone)
@@ -575,18 +582,29 @@ bool decodeSegments(upsData& payload)
      vOut[0] == 0xFF || vOut[1] == 0xFF || vOut[2] == 0xFF ||
      wIn[0] == 0xFF || wIn[1] == 0xFF || wIn[2] == 0xFF || wIn[3] == 0xFF ||
      wOut[0] == 0xFF || wOut[1] == 0xFF || wOut[2] == 0xFF || wOut[3] == 0xFF)
+  {
     return false;
-
-  if(vIn[2] > 2 || vOut[2] > 2) // potential error maybe
-    return false;
+  }
 
   udata.VoltsIn = vIn[0] + ( vIn[1] * 10) + (vIn[2] * 100);
   udata.VoltsOut = vOut[0] + ( vOut[1] * 10) + (vOut[2] * 100);
   udata.WattsIn = (wIn[0] * 1000) + (wIn[1] * 100) + (wIn[2] * 10) + wIn[3];
   udata.WattsOut = (wOut[0] * 1000) + (wOut[1] * 100) + (wOut[2] * 10) + wOut[3];
 
-  if(udata.VoltsIn == 0 && udata.VoltsOut == 0) // blank display glitch
+  if(udata.WattsIn < udata.WattsOut) // impossible
+  {
     return false;
+  }
+
+  if(udata.VoltsIn > 125 || udata.VoltsOut > 125) // US only
+  {
+    return false;
+  }
+
+  if(udata.VoltsIn == 0 && udata.VoltsOut == 0) // blank display glitch
+  {
+    return false;
+  }
 
   uint8_t battBits = ups_nibble[8] | ( (ups_nibble[9] & 1) << 4);
 
