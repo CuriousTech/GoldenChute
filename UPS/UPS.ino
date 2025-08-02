@@ -92,9 +92,20 @@ struct upsData
 
 upsData binPayload;
 
+// cccaaaaaadddd
+struct holtekBits{
+  uint16_t data:4;
+  uint16_t addr:6;
+  uint16_t cmd:3;
+};
+
+union holtek{
+    uint16_t w;
+    holtekBits h;
+};
+
 // ISR working mem
-volatile uint16_t ups_value;
-volatile uint16_t bitCnt;
+volatile holtek hx;
 volatile uint8_t ups_nibble[32]; // valid is 0-29, but the addr could hit 31, so be safe
 volatile bool bReady;
 
@@ -282,30 +293,24 @@ void alert(String txt)
   js.Var("text", txt);
   ws.textAll(js.Close());
 }
- 
+
 void ICACHE_RAM_ATTR CLK_ISR()
 {
-  ups_value <<= 1UL; // shift the bits in
-  if(digitalRead(DIN_PIN))
-    ups_value |= 1;
-  if(++bitCnt >= 13)
-  {
-    if((ups_value &0x1C00) == 0x1400) // write to address
-    {
-      uint8_t dataAddr = (ups_value >> 4) & 0x1F; // address
-
-      ups_nibble[dataAddr] = ups_value & 0xF;
-      if(dataAddr == 29) // last value complete
-        bReady = true;
-    }
-  }
+  hx.w <<= 1UL; // shift the bits in
+  hx.w |= digitalRead(DIN_PIN);
 }
 
-void ICACHE_RAM_ATTR CS_ISR() // CS pulls down before first clock of the 13 bits
+void ICACHE_RAM_ATTR CS_ISR() // CS raises after 13th bit
 {
-  ups_value = 0; // clear next entry
-  bitCnt = 0;
-}
+  if(hx.h.cmd != 5) // write to address
+    return;
+  if(hx.h.addr & 0x20) // block addr over 31
+    return;
+
+  ups_nibble[hx.h.addr] = hx.h.data;
+  if(hx.h.addr == 29) // last value complete
+    bReady = true;
+} 
 
 // Do a simple checksum and set the head value
 void checksumData()
@@ -384,7 +389,7 @@ void setup()
 
   jsonParse.setList(jsonList1);
   attachInterrupt(digitalPinToInterrupt(SCK_PIN), CLK_ISR, RISING);
-  attachInterrupt(digitalPinToInterrupt(CS_PIN), CS_ISR, FALLING);
+  attachInterrupt(digitalPinToInterrupt(CS_PIN), CS_ISR, RISING);
 }
 
 void loop()
@@ -419,7 +424,7 @@ void loop()
     bReady = false;
 
     bool bValid = decodeSegments(binPayload);
-   
+
     if(bValid)
     {
       checksumData(); // prepare it for transmit
@@ -676,6 +681,8 @@ uint8_t convertWDig(uint8_t n)
 }
 
 /*
+ https://datasheet.octopart.com/HT1621B-Holtek-datasheet-180022271.pdf
+
    A
 F     B
    G
