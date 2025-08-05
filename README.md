@@ -22,7 +22,7 @@ I beleve the first model had a push-on/push-off button and the display stayed on
 
 ![UPS Board](ups.png)  
   
-The female connector (XHB) even though I think XH would be better, needs pins or wire lead clippings crimped to make it solder to a PCB. I used pinheader pins. On the rev 1 board, I'll put the female on the outer end instead so the board is further from the edge. With this older one I had to solder the male connector first because I couldn't get to the back with the female one. Test fit them first to see the problem. The 2-pin connectors should be installed before the ESP32.   
+The female connector (XHB) even though I think XH would be better, needs pins or wire lead clippings crimped to make it solder to a PCB. I used pinheader pins. On the rev 1 board, I'll put the female on the outer end instead so the board is further from the edge. The 2-pin connector, wires, SSR and resistor should be installed before the ESP32.  Rev1 will have space for horiz or vert connector since the ESP32 will be on the back side.  
   
 ![Back](notch.jpg)  
 Cut a notch in the rear panel to fit the USB cable.  
