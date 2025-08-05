@@ -12,7 +12,7 @@ This mod requires opening the case of the UPS and plugging in a small board inli
 I beleve the first model had a push-on/push-off button and the display stayed on. For that model, all you need is the PCB, ESP32, and 7 pin connectors. Leave out the solid state relay, resistor and 2 pin connectors.  
   
 **Parts needed:**  
--  [PCB on OSHPark](https://oshpark.com/shared_projects/owMNRvet) Rev 1 on 7/28/25 longer for easier assembly.    
+-  [PCB on OSHPark](https://oshpark.com/shared_projects/3VnsRqIX) Actual Rev 1 on 8/4/25 after a OneDrive disaster mixed up some files.  This is set up for HW SPI, but not implemented yet.  
 -  [ESP32-C3-super mini](https://www.aliexpress.us/item/3256807353297685.html?spm=a2g0o.tesla.0.0.68bcQMQPQMQPhl&pdp_npi=5%40dis%21USD%21%242.70%21%240.99%21%21%21%21%21%40210318ec17532528750118282ee624%2112000041210885173%21btf%21%21%21%211%210&afTraceInfo=1005007539612437__pc__c_ppc_item_bridge_pc_jfy_wf__5EfmYTO__1753252875356&gatewayAdapt=glo2usa4itemAdapt)  
 -  AQY282S (SSR)  
 -  470 ohm 0805 resistor  
