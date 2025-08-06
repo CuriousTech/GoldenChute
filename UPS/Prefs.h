@@ -19,7 +19,7 @@ public:
   char      szSSIDPassword[64] = ""; // password for router
   char      szName[32] = "UPS"; // mDNS and OTA name
   char      szPassword[32] = "password"; // password for web
-  uint16_t  tzo; // timezone offset
+  int16_t  tzo; // timezone offset
   uint8_t   res[28];
   uint8_t   end;
 private:
