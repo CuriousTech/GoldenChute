@@ -27,6 +27,19 @@ body{width:490px;display:block;text-align:right;font-family: Arial, Helvetica, s
 <script type="text/javascript">
 a=document.all
 
+errorTxt=[
+  "",
+  "Low Voltage", // 1
+  "High Voltage",
+  "Short Circuit",
+  "Temperature",
+  "Overload", // 5
+  "Communication",
+  "Fan",
+  "High Output Voltage", // 8
+  "NA"
+]
+
 function openSocket(){
   ws=new WebSocket("ws://"+window.location.host+"/ws")
 //  ws=new WebSocket("ws://192.168.31.230/ws")
@@ -78,15 +91,19 @@ function draw(){
   c.lineWidth=2
   c.clearRect(0, 0, graph.width(), graph.height())
 
-  c.textAlign="right"
-  c.textBaseline="middle"
   if(+upsState.error)
   {
     c.font='20pt sans-serif'
-    c.fillText('ERROR', 64, 38)
-    c.fillText('U'+upsState.error, 64, 76)
+    c.textAlign="left"
+    c.textBaseline="middle"
+    c.fillText('ERROR', 14, 20)
+    c.fillText('U'+upsState.WattsIn, 14, 55)
+    c.fillText(errorTxt[Math.floor(upsState.WattsIn/10)], 14, 88)
     return
   }
+
+  c.textAlign="right"
+  c.textBaseline="middle"
 
   c.font='10pt sans-serif'
   c.fillText("Input", 28, 10)
