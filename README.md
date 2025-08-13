@@ -35,6 +35,7 @@ Right click on the exe, and select "Show more Options" then select "Create short
   C:\Users\[Your Account]\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup  
 Double-click to run the app.  
 Clicking on the top-right corner of the app will hide it.  
+Right-click for context menu (settings, quit, clear long)  
 **Settings:**  
 Go to the tray, and right click the icon for the menu. Select "Settings" and enter the IP address of the ESP32 device in the format "192.168.xxx.xxx" which you can find in the Arduino IDE ports, named UPS (IP).  
 If it connects, there should be a small red circle in the top left of the app. This will blink when data is recieved. It's just a filled circle for serial.  
