@@ -75,8 +75,8 @@ struct flagBits{
   uint16_t error:1; // WattsIn will be error #
   uint16_t model:2; // 0 = 1000VA, 1 = 1500VA, 2 = 2000VA 
   uint16_t battDisplay:3; // 0-5
-  uint16_t battLevel:4; // 0-10
-  uint16_t reserved:4;
+  uint16_t battLevel:3; // 0-7
+  uint16_t reserved:5;
 };
 
 struct upsData
@@ -382,6 +382,7 @@ void setup()
   ArduinoOTA.setHostname(prefs.szName);
   ArduinoOTA.begin();
   ArduinoOTA.onStart([]() {
+    digitalWrite(SSR, LOW); // ensure button isn't being pressed
     prefs.update();
     alert("OTA Update Started");
     ws.closeAll();
@@ -450,6 +451,10 @@ void loop()
         s += String( binPayload.b.battLevel * 10 );
         Serial.println(s);
       }
+    }
+    else
+    {
+      // todo: serial keepalive
     }
   }
 
@@ -611,25 +616,25 @@ bool decodeSegments(upsData& payload)
     return false;
   }
 
-  uint8_t battBits = ups_nibble[8] | ( (ups_nibble[9] & 1) << 4);
+  uint8_t battBits = (ups_nibble[8] << 1) | (ups_nibble[9] & 1);
 
   switch(battBits)
   {
-    case 0b00000: udata.b.battDisplay = 0; break;
-    case 0b00001: udata.b.battDisplay = 1; break;
-    case 0b00011: udata.b.battDisplay = 2; break;
-    case 0b00111: udata.b.battDisplay = 3; break;
-    case 0b01111: udata.b.battDisplay = 4; break;
-    case 0b11111: udata.b.battDisplay = 5; break;
+    case 0b00000: udata.b.battDisplay = 0; udata.b.battLevel = 0; break;
+    case 0b10000: udata.b.battDisplay = 1; udata.b.battLevel = 2; break; // 10-19% blinking = 5-9%
+    case 0b11000: udata.b.battDisplay = 2; udata.b.battLevel = 3; break; // 20-39%
+    case 0b11100: udata.b.battDisplay = 3; udata.b.battLevel = 4; break; // 40-59%
+    case 0b11110: udata.b.battDisplay = 4; udata.b.battLevel = 5; break; // 60-79%
+    case 0b11111: udata.b.battDisplay = 5; udata.b.battLevel = 7; break; // 91-100% blinking = 80-90%
     default: return false; // anything else
   }
 
-  udata.b.battLevel = udata.b.battDisplay * 2;
-
-  if(lastBattDisp != udata.b.battDisplay) // half a level alternates (blinking)
-  {
-    udata.b.battLevel = max(lastBattDisp, (uint8_t)udata.b.battDisplay) * 2 - 1;
-  }
+  // alternating display 1
+  if((lastBattDisp == 1 && udata.b.battDisplay == 0) || (lastBattDisp == 0 && udata.b.battDisplay == 1))
+      udata.b.battLevel = 1;
+  // alternating display 5
+  if((lastBattDisp == 5 && udata.b.battDisplay == 4) || (lastBattDisp == 5 && udata.b.battDisplay == 4))
+      udata.b.battLevel = 6;
 
   lastBattDisp = udata.b.battDisplay;
 
