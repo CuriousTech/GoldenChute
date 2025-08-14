@@ -620,12 +620,12 @@ bool decodeSegments(upsData& payload)
 
   switch(battBits)
   {
-    case 0b00000: udata.b.battDisplay = 0; udata.b.battLevel = 0; break;
-    case 0b10000: udata.b.battDisplay = 1; udata.b.battLevel = 2; break; // 10-19% blinking = 5-9%
+    case 0b00000: udata.b.battDisplay = 0; udata.b.battLevel = 0; break; // <= 4%
+    case 0b10000: udata.b.battDisplay = 1; udata.b.battLevel = 2; break; // 11-19% blinking = 5-9%
     case 0b11000: udata.b.battDisplay = 2; udata.b.battLevel = 3; break; // 20-39%
     case 0b11100: udata.b.battDisplay = 3; udata.b.battLevel = 4; break; // 40-59%
     case 0b11110: udata.b.battDisplay = 4; udata.b.battLevel = 5; break; // 60-79%
-    case 0b11111: udata.b.battDisplay = 5; udata.b.battLevel = 7; break; // 91-100% blinking = 80-90%
+    case 0b11111: udata.b.battDisplay = 5; udata.b.battLevel = 7; break; // 90-100% blinking = 80-89%
     default: return false; // anything else
   }
 
