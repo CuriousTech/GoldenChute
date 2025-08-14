@@ -27,7 +27,7 @@ body{width:490px;display:block;text-align:right;font-family: Arial, Helvetica, s
 <script type="text/javascript">
 a=document.all
 
-battLevels=[0,9,19,39,59,79,90,100]
+battLevels=[5,10,20,40,60,80,90,100]
 
 errorTxt=[
   "",
