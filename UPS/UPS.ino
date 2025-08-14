@@ -633,7 +633,7 @@ bool decodeSegments(upsData& payload)
   if((lastBattDisp == 1 && udata.b.battDisplay == 0) || (lastBattDisp == 0 && udata.b.battDisplay == 1))
       udata.b.battLevel = 1;
   // alternating display 5
-  if((lastBattDisp == 5 && udata.b.battDisplay == 4) || (lastBattDisp == 5 && udata.b.battDisplay == 4))
+  if((lastBattDisp == 5 && udata.b.battDisplay == 4) || (lastBattDisp == 4 && udata.b.battDisplay == 5))
       udata.b.battLevel = 6;
 
   lastBattDisp = udata.b.battDisplay;
