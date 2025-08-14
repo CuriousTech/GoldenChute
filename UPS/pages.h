@@ -27,6 +27,8 @@ body{width:490px;display:block;text-align:right;font-family: Arial, Helvetica, s
 <script type="text/javascript">
 a=document.all
 
+battLevels=[0,9,19,39,59,79,90,100]
+
 errorTxt=[
   "",
   "Low Voltage", // 1
@@ -107,7 +109,7 @@ function draw(){
 
   c.font='10pt sans-serif'
   c.fillText("Input", 28, 10)
-  c.fillText(upsState.LVL*10+'%', 150, 10)
+  c.fillText(battLevels[upsState.LVL]+'%', 150, 10)
   c.fillText("Output", 240, 10)
 
   c.fillStyle='red'
@@ -118,7 +120,8 @@ function draw(){
 
   c.fillStyle=c.strokeStyle='black'
   c.font='italic 20pt sans-serif'
-  c.fillText(upsState.voltsIn+'v', 64, 38)
+  if(upsState.voltsIn)
+    c.fillText(upsState.voltsIn+'v', 64, 38)
   c.fillText(upsState.voltsOut+'v', 260, 38)
   c.fillText(upsState.wattsIn+'w', 64, 76)
   c.fillText(upsState.wattsOut+'w', 260, 76)
@@ -128,7 +131,7 @@ function draw(){
   for(i = 0; i < 5; i++)
   {
     if(i >= upsState.BATT)
-      c.strokeRect(104, y, 50, 10)
+      c.strokeRect(104+1, y+1, 50-2, 10-2)
     else
       c.fillRect(104, y, 50, 10)
     y -= 12
