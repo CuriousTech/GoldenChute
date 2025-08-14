@@ -49,5 +49,5 @@ Alerts currently just cause the window to popup and show red text over the "Inpu
 Hide after start causes the window to hide 4 seconds after startup.  
 The outage log (top right area, hidden when small) is blank until an entry is created.  Entries are comma delimited lines saved in a file in the local exe folder, named ups_log.txt.  
 
-Battery health can be used to adjust the time remaining calculation. The time is based on the modeol ID (i.e. 1000VA) assuming a 90% efficient inverter (900Wh), current average watts used, and 100% everywhere else, so starting with 95~97% health should be close. The information from the display is in 10% increments, so if it switches to backup while charging, the time could be wrong by maybe 5%, but recalculates when the level changes. 
+Battery health can be used to adjust the time remaining calculation. The time is based on the modeol ID (i.e. 1000VA) assuming a 90% efficient inverter (900Wh), current average watts used, and 100% everywhere else, so starting with 95~97% health should be close. The information from the display is 5 bars, but level 1 blinks to indicate 1-9% and 5 blinks to indicate 80-90%, so if it switches to backup while charging, the time could be low by up to 9%, but recalculates when the level changes. The estimate increments slowly while charging.  
   
