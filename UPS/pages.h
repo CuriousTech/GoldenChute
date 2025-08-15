@@ -27,8 +27,6 @@ body{width:490px;display:block;text-align:right;font-family: Arial, Helvetica, s
 <script type="text/javascript">
 a=document.all
 
-battLevels=[4,9,19,39,59,79,89,100]
-
 errorTxt=[
   "",
   "Low Voltage", // 1
@@ -109,7 +107,7 @@ function draw(){
 
   c.font='10pt sans-serif'
   c.fillText("Input", 28, 10)
-  c.fillText(battLevels[upsState.LVL]+'%', 150, 10)
+  c.fillText(upsState.battPercent+'%', 150, 10)
   c.fillText("Output", 240, 10)
 
   c.fillStyle='red'
