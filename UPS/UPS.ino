@@ -70,13 +70,13 @@ uint32_t connectTimer;
 bool bGMFormatSerial;
 
 struct flagBits{
-  uint16_t OnUPS:1;
-  uint16_t OnAC:1;
-  uint16_t error:1; // WattsIn will be error #
-  uint16_t model:2; // 0 = 1000VA, 1 = 1500VA, 2 = 2000VA 
-  uint16_t battDisplay:3; // 0-5
-  uint16_t battLevel:3; // 0-7
-  uint16_t reserved:5;
+  uint16_t OnUPS : 1;
+  uint16_t OnAC : 1;
+  uint16_t error : 1; // WattsIn will be error #
+  uint16_t model : 3; // 0 = 1000VA, 1 = 1500VA, 2 = 2000VA 
+  uint16_t reserved1 : 4;
+  uint16_t battDisplay : 3; // 0-5
+  uint16_t battLevel : 3; // 0-7 (will be phased out)
 };
 
 struct upsData
@@ -87,16 +87,17 @@ struct upsData
   uint8_t  VoltsOut;
   uint16_t WattsIn;
   uint16_t WattsOut;
+  uint8_t  battPercent; // to be implemented
   uint8_t  sum;
-}; // 10 bytes
+}; // 11 bytes
 
 upsData binPayload;
 
 // cccaaaaaadddd
 struct holtekBits{
-  uint16_t data:4;
-  uint16_t addr:6;
-  uint16_t cmd:3;
+  uint16_t data : 4;
+  uint16_t addr : 6;
+  uint16_t cmd : 3;
 };
 
 union holtek{
@@ -135,6 +136,7 @@ String statusJson()
   js.Var("wattsOut", binPayload.WattsOut);
   js.Var("BATT", binPayload.b.battDisplay);
   js.Var("LVL", binPayload.b.battLevel);
+  js.Var("battPercent", binPayload.battPercent );
   js.Var("error", binPayload.b.error);
   return js.Close();
 }
@@ -433,7 +435,9 @@ void loop()
       ws.textAll( statusJson() ); // send to web page or other websocket clients
 
       if(binClientID) // send to Windows Goldenchute client
+      {
         wsb.binary(binClientID, (uint8_t*)&binPayload, sizeof(binPayload));
+      }
 
       if(bGMFormatSerial)
       {
@@ -448,7 +452,7 @@ void loop()
         s += ",";
         s += String( binPayload.WattsOut );
         s += ",";
-        s += String( binPayload.b.battLevel * 10 );
+        s += String( binPayload.battPercent );
         Serial.println(s);
       }
     }
@@ -560,20 +564,19 @@ void checkSerial()
   }
 }
 
-bool decodeSegments(upsData& payload)
+bool decodeSegments(upsData& udata)
 {
-  upsData udata;
   uint8_t vIn[3];
   uint8_t vOut[3];
   uint8_t wIn[4];
   uint8_t wOut[4];
   static uint8_t lastBattDisp;
 
+  memset(&udata, 0, sizeof(udata));
   if(convertWDig(2) == 10) // U## error display
   {
     udata.b.error = 1;
     udata.WattsIn = (convertWDig(4) * 10) + convertWDig(6);
-    payload = udata;
     return true;
   }
 
@@ -638,7 +641,10 @@ bool decodeSegments(upsData& payload)
 
   lastBattDisp = udata.b.battDisplay;
 
-  payload = udata;
+  const byte battLevels[] = {4, 9, 19, 39, 59, 79, 89, 100};
+
+  udata.battPercent = battLevels[ udata.b.battLevel ];
+
   return true;
 }
 
