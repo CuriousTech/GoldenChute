@@ -21,7 +21,8 @@ I beleve the first model had a push-on/push-off button and the display stayed on
 -  2P 0.1" connector F + 2 wires (2-3 inches) Note: The button is non-polarized  (The AliExpress above didn't fit the 2 pin)  (Dupont will work if nothing else)  
 
 ![UPS Board](ups.png)  
-  
+
+  (New pics of the install around Aug 30th, USPS has been very slow)  
 The female connector (XHB) even though I think XH would be better, needs pins or wire lead clippings crimped to make it solder to a PCB. I used pinheader pins. On the rev 1 board, I'll put the female on the outer end instead so the board is further from the edge. The 2-pin connector, wires, SSR and resistor should be installed before the ESP32.  Rev1 will have space for horiz or vert connector since the ESP32 will be on the back side.  
   
 ![Back](notch.jpg)  
@@ -37,7 +38,7 @@ Double-click to run the app.
 Clicking on the top-right corner of the app will hide it.  
 Right-click for context menu (settings, quit, clear long)  
 **Settings:**  
-Go to the tray, and right click the icon for the menu. Select "Settings" and enter the IP address of the ESP32 device in the format "192.168.xxx.xxx" which you can find in the Arduino IDE ports, named UPS (IP).  
+Right-click in the window, or go to the tray, and right click the icon for the menu. Select "Settings" and enter the IP address of the ESP32 device in the format "192.168.xxx.xxx" which you can find in the Arduino IDE ports, named UPS (IP).  
 If it connects, there should be a small red circle in the top left of the app. This will blink when data is recieved. It's just a filled circle for serial.  
 COM Port (Note: using serial will cause the ESP32 to reset every time the app exits).  
 The radio buttons allow selecting either COM or websocket.  
