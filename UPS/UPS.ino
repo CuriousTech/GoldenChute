@@ -51,6 +51,9 @@ int nWrongPass;
 
 int8_t nWsConnected;
 
+const byte battLevels[] = {4, 9, 19, 39, 59, 79, 89, 100};
+
+
 AsyncWebServer server( 80 );
 AsyncWebSocket ws("/ws"); // access at ws://[esp ip]/ws
 AsyncWebSocket wsb("/bin"); // binary websocket for Windows app
@@ -68,6 +71,12 @@ bool bConfigDone;
 bool bStarted;
 uint32_t connectTimer;
 bool bGMFormatSerial;
+
+// percent calculator
+uint8_t nLevelPercent;
+uint8_t nBarPercent;
+uint32_t nWattsAccum;
+uint32_t nWattsPerBar;
 
 struct flagBits{
   uint16_t OnUPS : 1;
@@ -432,6 +441,7 @@ void loop()
     {
       checksumData(); // prepare it for transmit
       sentMS = millis();
+      calcPercent();
       ws.textAll( statusJson() ); // send to web page or other websocket clients
 
       if(binClientID) // send to Windows Goldenchute client
@@ -534,6 +544,73 @@ void loop()
   }
 
   checkSerial();
+}
+
+void levelChange()
+{
+  binPayload.battPercent = nLevelPercent = battLevels[binPayload.b.battLevel];
+  nBarPercent = 0;
+
+  if (binPayload.b.OnUPS) // bar dropped
+  {
+    if (binPayload.b.battLevel)
+    {
+      nBarPercent = nLevelPercent - battLevels[binPayload.b.battLevel - 1];
+    }
+    else nBarPercent = battLevels[0]; // no bars
+  }
+  else if(binPayload.b.battLevel != 7) // bar incremented
+  {
+    nBarPercent = battLevels[binPayload.b.battLevel + 1] - nLevelPercent;
+  }
+  else
+    nBarPercent = 10; // level 7 = 10%
+
+  uint16_t nWhTotal = 900; // 90% efficiency
+  switch(binPayload.b.model)
+  {
+    case 1: nWhTotal = 1350; break; // 1500
+    case 2: nWhTotal = 1800; break; // 2000
+  }
+
+  nWattsPerBar = nWhTotal * nBarPercent / 100 * 3600; // watt hours per current bar to watt seconds
+  nWattsAccum = 0; // reset accumulator on level change
+}
+
+void calcPercent()
+{
+  static uint8_t nCnt = 0;
+  static uint8_t lvl = 0;
+
+  if (binPayload.b.battLevel != lvl) // skip first second of change
+  {
+    nCnt = 0;
+    lvl = binPayload.b.battLevel;
+  }
+  else if(nCnt < 10) nCnt++;
+
+  if (nCnt == 2)
+  {
+    levelChange();
+  }
+
+  if(binPayload.b.OnUPS)
+    nWattsAccum += binPayload.WattsIn; // discharge watts
+  else
+    nWattsAccum += binPayload.WattsIn - binPayload.WattsOut - 1; // charge watts
+
+  if (nBarPercent)
+  {
+    int percDiff = nWattsAccum * nBarPercent / nWattsPerBar;
+
+    if (binPayload.b.OnUPS)
+    {
+      if (nLevelPercent - percDiff > 0)
+        binPayload.battPercent = nLevelPercent - percDiff;
+    }
+    else if (binPayload.b.battLevel < 7)
+      binPayload.battPercent = nLevelPercent + percDiff;
+  }
 }
 
 // Check for incoming serial data
@@ -640,10 +717,6 @@ bool decodeSegments(upsData& udata)
       udata.b.battLevel = 6;
 
   lastBattDisp = udata.b.battDisplay;
-
-  const byte battLevels[] = {4, 9, 19, 39, 59, 79, 89, 100};
-
-  udata.battPercent = battLevels[ udata.b.battLevel ];
 
   return true;
 }
