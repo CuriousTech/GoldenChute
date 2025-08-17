@@ -7,7 +7,7 @@ This is a simple modification for the GoldeMate UPS to access the information di
   
 The top is the web page for remote access, and the bottom is the Windows app.  
 
-This mod requires opening the case of the UPS and plugging in a small board inline with the front display. It's a segmented display with SPI interface, so the ESP32 decodes all the bits and translates them to something usable. The data is only sent to the display when the power button is short-pressed, so this also simulates the button (in parallel). The 5V power for the ESP32 needs to be external since the display 5V is only on when the display is powered, so run a USB cable to the rear panel and cut a small notch so the case can slide back on, and connect to PC or USB power supply (connected to the UPS, so it's powered on battery).  
+This mod requires opening the case of the UPS and plugging in a small board inline with the front display. It's a segmented display with SPI interface, so the ESP32 decodes all the bits and translates them to something usable. The data is only sent to the display for 60 seconds when the power button is short-pressed, so this also simulates the button (in parallel). The 5V power for the ESP32 needs to be external since the display 5V is only on when the display is powered, so run a USB cable to the rear panel and cut a small notch so the case can slide back on, and connect to PC or USB power supply (powered by the UPS, so it's powered on battery).  
   
 I beleve the first model had a push-on/push-off button and the display stayed on. For that model, all you need is the PCB, ESP32, and 7 pin connectors. Leave out the solid state relay, resistor and 2 pin connectors.  
   
@@ -23,12 +23,13 @@ I beleve the first model had a push-on/push-off button and the display stayed on
 ![UPS Board](ups.png)  
 
   (New pics of the install around Aug 30th, USPS has been very slow)  
-The female connector (XHB) even though I think XH would be better, needs pins or wire lead clippings crimped to make it solder to a PCB. I used pinheader pins. On the rev 1 board, I'll put the female on the outer end instead so the board is further from the edge. The 2-pin connector, wires, SSR and resistor should be installed before the ESP32.  Rev1 will have space for horiz or vert connector since the ESP32 will be on the back side.  
+The female connector (XHB) even though I think XH would be better, needs pins or wire lead clippings crimped to make it solder to a PCB. I used male pinheader pins. A female pinheader actually holds well if you can't get XH/B.  The female should be on the outer end. The 2-pin connector and wires should be installed before the ESP32, which should be on the opposide side of the SSR, component side facing the display.  
   
 ![Back](notch.jpg)  
 Cut a notch in the rear panel to fit the USB cable.  
   
 Settings for router SSID and SSID password are in Prefs.h, as well as the remote password for web control. If they aren't set or the SSID changes, EspTouch can be used.  
+Compiling the code should be easy. Most information is in UPS.ino, like where to get the libraries needed, and settings for the ESP32-C3-super mini such as enabling CDC on boot. There's also an S3 that is pin compatible.  (The pin assignments are incorrect ATM. They will be changed when I get the new PCB)  
   
 **Windows app:**  
 Extract the exe and move it to somewhere like C:\Goldenamte.  
