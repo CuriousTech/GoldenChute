@@ -23,7 +23,7 @@ I beleve the first model had a push-on/push-off button and the display stayed on
 ![UPS Board](ups.png)  
 
   (New pics of the install around Aug 30th, USPS has been very slow)  
-The female connector (XHB) even though I think XH would be better, needs pins or wire lead clippings crimped to make it solder to a PCB. I used male pinheader pins. A female pinheader actually holds well if you can't get XH/B.  The female should be on the outer end. The 2-pin connector and wires should be installed before the ESP32, which should be on the opposide side of the SSR, component side facing the display.  
+The female connector (XHB) even though I think XH would be better, needs pins or wire lead clippings crimped to make it solder to a PCB. I used male pinheader pins. A female pinheader actually holds well if you can't get XH/B.  The female should be on the outer end. The 2-pin connector and wires should be installed before the ESP32, which should be on the opposite side side of the SSR, component side facing the display.  
   
 ![Back](notch.jpg)  
 Cut a notch in the rear panel to fit the USB cable.  
