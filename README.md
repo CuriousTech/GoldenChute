@@ -46,7 +46,7 @@ The radio buttons allow selecting either COM or websocket.
 Percent to shut down: The % is just the bar levels, not actual percent (which I don't trust entirely). There is a 10 second delay when it reaches the desired %, then it will hibernate or hibrid-sleep if that is set up properly and doesn't fail, otherwise it will shut down.  
 Skip seconds: 0 will add data to the chart every second (total 24 hours). 1 would be 48 hours, but miss every other second.  
 The web page also allows manual remote shutdown/hibernate. The password will need to be the same here as in Prefs.h  Test it once to esnure it works properly.  
-Alerts currently just cause the window to popup and show red text over the "Input" label, such as "Serial timeout" or WebSocket disconnected"  
+Alerts currently just cause the window to popup and show red text over the "Input" label, such as "Serial timeout/in use" or WebSocket disconnected"  
   
 Hide after start causes the window to hide 4 seconds after startup.  
 The outage log (top right area, hidden when small) is blank until an entry is created.  Entries are comma delimited lines saved in a file in the local exe folder, named ups_log.txt.  
