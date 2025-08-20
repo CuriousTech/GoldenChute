@@ -53,7 +53,6 @@ int8_t nWsConnected;
 
 const byte battLevels[] = {4, 9, 19, 39, 59, 79, 89, 100};
 
-
 AsyncWebServer server( 80 );
 AsyncWebSocket ws("/ws"); // access at ws://[esp ip]/ws
 AsyncWebSocket wsb("/bin"); // binary websocket for Windows app
@@ -90,13 +89,13 @@ struct flagBits{
 
 struct upsData
 {
-  uint8_t  head;
+  uint8_t  head[2]; // should be 16 bit aligned
   flagBits b;
   uint8_t  VoltsIn;
   uint8_t  VoltsOut;
   uint16_t WattsIn;
   uint16_t WattsOut;
-  uint8_t  battPercent; // to be implemented
+  uint8_t  battPercent;
   uint8_t  sum;
 }; // 11 bytes
 
@@ -248,7 +247,6 @@ void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventT
       client->keepAlivePeriod(50);
       client->text( statusJson() );
       client->text( dataJson() );
-      client->ping();
       nWsConnected++;
       break;
     case WS_EVT_DISCONNECT:    //client disconnected
@@ -283,7 +281,6 @@ void onBinEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEvent
       client->keepAlivePeriod(50);
       binClientID = client->id();
       client->binary((uint8_t*)&binPayload, sizeof(binPayload));
-      client->ping();
       break;
     case WS_EVT_DISCONNECT:    //client disconnected
       binClientID = 0;
@@ -326,17 +323,19 @@ void ICACHE_RAM_ATTR CS_ISR() // CS raises after 13th bit
 // Do a simple checksum and set the head value
 void checksumData()
 {
-  uint8_t *pData = (uint8_t *)&binPayload;
+  binPayload.head[0] = 0xAB;
+  binPayload.head[1] = 0xCD;
+
+  uint8_t *pData = (uint8_t *)&binPayload + 2;
   uint8_t sum = 0;
-  for(uint8_t i = 1; i < sizeof(upsData) - 2; i++)
+  for(uint8_t i = 0; i < sizeof(upsData) - 3; i++)
     sum += pData[i];
   binPayload.sum = sum;
-  binPayload.head = 0xAA;
 }
 
 void setup()
 {
-  Serial.begin(115200);
+  Serial.begin(115200); // USB serial data rate (9600 is probably more common)
 
   pinMode(DIN_PIN, INPUT);
   pinMode(SCK_PIN, INPUT);
@@ -374,9 +373,6 @@ void setup()
   server.on( "/status", HTTP_GET | HTTP_POST, [](AsyncWebServerRequest *request){
     parseParams(request);
     request->send( 200, "text/json", statusJson() );
-  });
-  server.on("/heap", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send(200, "text/plain", String(ESP.getFreeHeap()));
   });
   server.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest *request){
     AsyncWebServerResponse *response = request->beginResponse_P(200, "image/x-icon", favicon, sizeof(favicon));
@@ -420,7 +416,7 @@ void loop()
   {
     if(millis() - lastMSbtn > 500)
     {
-      digitalWrite(SSR, LOW);
+      digitalWrite(SSR, LOW); // release button after 500ms
     }
   }
   if(bPushSSR) // press button, start ms timer
@@ -435,9 +431,7 @@ void loop()
   {
     bReady = false;
 
-    bool bValid = decodeSegments(binPayload);
-
-    if(bValid)
+    if( decodeSegments(binPayload) )
     {
       checksumData(); // prepare it for transmit
       sentMS = millis();
@@ -453,16 +447,22 @@ void loop()
       {
         Serial.write((uint8_t*)&binPayload, sizeof(binPayload) );        
       }
-      else if(binPayload.b.error == 0)
+      else if(binPayload.b.error)
+      {
+        String s = "ERROR ";
+        s += binPayload.WattsIn; // Send error code text
+        Serial.println(s);        
+      }
+      else
       {
         // default: text "0,250,100" for not on battery, 250 watts, battery level 100%
         // or make your own format, or emulate another UPS
         String s = "";
         s += (binPayload.b.OnUPS) ? 1:0;
         s += ",";
-        s += String( binPayload.WattsOut );
+        s += binPayload.WattsOut;
         s += ",";
-        s += String( binPayload.battPercent );
+        s += binPayload.battPercent;
         Serial.println(s);
       }
     }
@@ -546,10 +546,11 @@ void loop()
   checkSerial();
 }
 
+// Called when the battery level changes
 void levelChange()
 {
-  binPayload.battPercent = nLevelPercent = battLevels[binPayload.b.battLevel];
-  nBarPercent = 0;
+  binPayload.battPercent = nLevelPercent = battLevels[binPayload.b.battLevel]; // current percent at new bar display
+  nBarPercent = 0; // percent for current bar
 
   if (binPayload.b.OnUPS) // bar dropped
   {
@@ -557,7 +558,7 @@ void levelChange()
     {
       nBarPercent = nLevelPercent - battLevels[binPayload.b.battLevel - 1];
     }
-    else nBarPercent = battLevels[0]; // no bars
+    else nBarPercent = battLevels[0]; // no bars (last 5%)
   }
   else if(binPayload.b.battLevel != 7) // bar incremented
   {
@@ -594,10 +595,10 @@ void calcPercent()
     levelChange();
   }
 
-  if(binPayload.b.OnUPS)
-    nWattsAccum += binPayload.WattsIn; // discharge watts
+  if (binPayload.b.OnUPS)
+    nWattsAccum += binPayload.WattsIn; // discharge watts (battery is likely WattsIn)
   else
-    nWattsAccum += binPayload.WattsIn - binPayload.WattsOut - 1; // charge watts
+    nWattsAccum += binPayload.WattsIn - binPayload.WattsOut - 1; // charge watts + 1W
 
   if (nBarPercent)
   {
@@ -621,11 +622,10 @@ void checkSerial()
 
   while(Serial.available() > 0)
   {
-    buffer[bufIdx] = Serial.read();
-    if(bufIdx < 8) bufIdx++;
+    buffer[bufIdx++] = Serial.read();
 
     // The Goldenamte Windows app will send this:
-    if(bufIdx == 4)
+    if(bufIdx >= 4)
     {
       if( buffer[0] == 0xAA && buffer[1] == 'G' && buffer[2] == 'M' && buffer[3] == 0)
       {
