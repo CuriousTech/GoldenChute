@@ -97,7 +97,7 @@ struct upsData
   uint16_t WattsOut;
   uint8_t  battPercent;
   uint8_t  sum;
-}; // 11 bytes
+}; // 12 bytes
 
 upsData binPayload;
 
@@ -649,7 +649,6 @@ bool decodeSegments(upsData& udata)
   uint8_t wOut[4];
   static uint8_t lastBattDisp;
 
-  memset(&udata, 0, sizeof(udata));
   if(convertWDig(2) == 10) // U## error display
   {
     udata.b.error = 1;
