@@ -37,11 +37,11 @@ SOFTWARE.
 #include "pages.h"
 #include "jsonstring.h"
 
-#define CS_PIN  4
-#define DIN_PIN 2
-#define SCK_PIN 3
+#define CS_PIN  7
+#define DIN_PIN 6
+#define SCK_PIN 4
 #define LED     8
-#define SSR     6
+#define SSR     3
 
 #define UPS_MODEL 0 // 0 = 1000VA, 1 = 1500VA, 2 = 2000VA
 
