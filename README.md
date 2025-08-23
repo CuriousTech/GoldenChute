@@ -3,7 +3,7 @@ GoldenMate UPS monitor and Windows software
   
 This is a simple modification for the GoldeMate UPS to access the information displayed as well as safely shut a Windows PC down before the battery runs down. The thing that's important when using a UPS.  
   
-![WebAndWinPic](GM_WebAndWin.png)  
+![WebAndWinPic](assets/GM_WebAndWin.png)  
   
 The top is the web page for remote access, and the bottom is the Windows app.  
 
@@ -21,14 +21,14 @@ I beleve the first model had a push-on/push-off button and the display stayed on
 -  2P 0.1" connector M 
 -  2P 0.1" connector F + 2 wires (2-3 inches) Note: The button is non-polarized  (The AliExpress above didn't fit the 2 pin)  (Dupont will work if nothing else)  
 
-![UPS Board](ups.png)  
+![UPS Board](assets/ups.png)  
 ![Front panel](assets/front_panel.jpg)  
 
 Remove the 2 screws under each rubber foot. Slide the cover off (to the front).  Remove the 6 screws around the front panel. 
   
 The female connector (XHB) XH works well, needs pins or wire lead clippings crimped to make it solder to a PCB. I used male pinheader pins. A female pinheader actually holds well if you can't get XH/B.  The female should be on the outer end. The 2-pin connector and wires should be installed before the ESP32, which should be on the opposite side side of the SSR, component side facing the display.  
   
-![Back](notch.jpg)  
+![Back](assets/notch.jpg)  
 Cut a notch in the rear panel to fit the USB cable.  
   
 Settings for router SSID and SSID password are in Prefs.h, as well as the remote password for web control. If they aren't set or the SSID changes, EspTouch can be used.  
