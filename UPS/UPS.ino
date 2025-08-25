@@ -583,7 +583,7 @@ void calcPercent()
   static uint8_t nCnt = 0;
   static uint8_t lvl = 0;
 
-  if (binPayload.b.battLevel != lvl) // skip first second of change
+  if (binPayload.b.battLevel != lvl) // skip first second of change (top bar blinks once every few hours when it tops off?)
   {
     nCnt = 0;
     lvl = binPayload.b.battLevel;
@@ -666,29 +666,24 @@ bool decodeSegments(upsData& udata)
   wIn[0]  = convertWDig(0);  wIn[1]  = convertWDig(2);  wIn[2]  = convertWDig(4); wIn[3] = convertWDig(6);
   wOut[0] = convertWDig(9);  wOut[1] = convertWDig(11); wOut[2] = convertWDig(13); wOut[3] = convertWDig(15);
 
-  // invalid digit
-  if(vIn[0] == 0xFF || vIn[1] == 0xFF || vIn[2] == 0xFF ||
-     vOut[0] == 0xFF || vOut[1] == 0xFF || vOut[2] == 0xFF ||
-     wIn[0] == 0xFF || wIn[1] == 0xFF || wIn[2] == 0xFF || wIn[3] == 0xFF ||
-     wOut[0] == 0xFF || wOut[1] == 0xFF || wOut[2] == 0xFF || wOut[3] == 0xFF)
+  // check for valid digits
+  if(vIn[0] != 0xFF && vIn[1] != 0xFF && vIn[2] != 0xFF)
   {
-    return false;
+    uint16_t volts = vIn[0] + ( vIn[1] * 10) + (vIn[2] * 100);
+    if(volts <= 125) // change if 240V
+      udata.VoltsIn = volts;
   }
-
-  udata.VoltsIn = vIn[0] + ( vIn[1] * 10) + (vIn[2] * 100);
-  udata.VoltsOut = vOut[0] + ( vOut[1] * 10) + (vOut[2] * 100);
-  udata.WattsIn = (wIn[0] * 1000) + (wIn[1] * 100) + (wIn[2] * 10) + wIn[3];
-  udata.WattsOut = (wOut[0] * 1000) + (wOut[1] * 100) + (wOut[2] * 10) + wOut[3];
-
-  if(udata.WattsIn < udata.WattsOut) // impossible
+  if(vOut[0] != 0xFF && vOut[1] != 0xFF && vOut[2] != 0xFF)
   {
-    return false;
+    uint16_t volts = vOut[0] + ( vOut[1] * 10) + (vOut[2] * 100);
+    if(volts <= 125)
+      udata.VoltsOut = volts;
   }
+  if(wIn[0] != 0xFF && wIn[1] != 0xFF && wIn[2] != 0xFF && wIn[3] != 0xFF)
+    udata.WattsIn = (wIn[0] * 1000) + (wIn[1] * 100) + (wIn[2] * 10) + wIn[3];
 
-  if(udata.VoltsIn > 125 || udata.VoltsOut > 125) // US only
-  {
-    return false;
-  }
+  if(wOut[0] != 0xFF && wOut[1] != 0xFF && wOut[2] != 0xFF && wOut[3] != 0xFF)
+    udata.WattsOut = (wOut[0] * 1000) + (wOut[1] * 100) + (wOut[2] * 10) + wOut[3];
 
   if(udata.VoltsIn == 0 && udata.VoltsOut == 0) // blank display glitch
   {
