@@ -59,7 +59,7 @@ AsyncWebSocket wsb("/bin"); // binary websocket for Windows app
 //AsyncWebSocket wsb2("/other"); // Add some other WebSocket for alternate needs. Duplicate the wsb references for your format
 
 uint32_t WsClientID;
-uint32_t binClientID;
+uint32_t binClientCnt;
 
 void jsonCallback(int16_t iName, int iValue, char *psValue);
 JsonParse jsonParse(jsonCallback);
@@ -125,7 +125,7 @@ String dataJson()
   js.Var("t", (uint32_t)time(nullptr));
   int sig = WiFi.RSSI();
   js.Var("rssi", sig);
-  js.Var("connected", binClientID);
+  js.Var("connected", binClientCnt);
   return js.Close();
 }
 
@@ -135,7 +135,7 @@ String statusJson()
   js.Var("t", (uint32_t)time(nullptr));
   int sig = WiFi.RSSI();
   js.Var("rssi", sig);
-  js.Var("connected", binClientID);
+  js.Var("connected", binClientCnt);
   js.Var("AC", binPayload.b.OnAC);
   js.Var("UPS", binPayload.b.OnUPS);
   js.Var("voltsIn", binPayload.VoltsIn);
@@ -206,7 +206,7 @@ void jsonCallback(int16_t iName, int iValue, char *psValue)
     case 2: // hibernate
       {
         static char data[] = "HIBR";
-        wsb.binary(binClientID, data, 4);
+        wsb.binaryAll(data, 4);
         static uint8_t data2[] = {0xAB, 'H','I','B','R'};
         Serial.write(data2, 5);
       }
@@ -214,7 +214,7 @@ void jsonCallback(int16_t iName, int iValue, char *psValue)
     case 3: // shutdown
       {
         static char data[] = "SHDN";
-        wsb.binary(binClientID, data, 4);
+        wsb.binaryAll(data, 4);
         static uint8_t data2[] = {0xAB, 'S','H','D','N'};
         Serial.write(data2, 5);
       }
@@ -279,14 +279,14 @@ void onBinEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEvent
   {
     case WS_EVT_CONNECT:      //client connected
       client->keepAlivePeriod(50);
-      binClientID = client->id();
+      binClientCnt++;
       client->binary((uint8_t*)&binPayload, sizeof(binPayload));
       break;
     case WS_EVT_DISCONNECT:    //client disconnected
-      binClientID = 0;
+      if(binClientCnt)
+        binClientCnt--;
       break;
     case WS_EVT_ERROR:    //error was received from the other end
-      binClientID = 0;
       break;
     case WS_EVT_PONG:    //pong message was received (in response to a ping request maybe)
       break;
@@ -438,9 +438,9 @@ void loop()
       calcPercent();
       ws.textAll( statusJson() ); // send to web page or other websocket clients
 
-      if(binClientID) // send to Windows Goldenchute client
+      if(binClientCnt) // send to Windows Goldenchute client
       {
-        wsb.binary(binClientID, (uint8_t*)&binPayload, sizeof(binPayload));
+        wsb.binaryAll((uint8_t*)&binPayload, sizeof(binPayload));
       }
 
       if(bGMFormatSerial)
@@ -596,9 +596,19 @@ void calcPercent()
   }
 
   if (binPayload.b.OnUPS)
+  {
     nWattsAccum += binPayload.WattsIn; // discharge watts (battery is likely WattsIn)
+  }
   else
+  {
     nWattsAccum += binPayload.WattsIn - binPayload.WattsOut - 1; // charge watts + 1W
+
+    if(binPayload.WattsIn - binPayload.WattsOut <= 1 && binPayload.b.battLevel == 7) // not charging
+    {
+      binPayload.battPercent = 100;
+      nBarPercent = 0;
+    }
+  }
 
   if (nBarPercent)
   {
