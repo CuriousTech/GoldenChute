@@ -53,14 +53,14 @@ function openSocket(){
   {
     case 'state':
       dt=new Date(d.t*1000)
-      a.topbar.innerHTML=((+d.connected)?'PC Connected ':'PC Disonnected')+' &nbsp; '+dt.toLocaleTimeString()+' &nbsp; &nbsp; '+d.rssi+'dB  &nbsp; '
+      a.topbar.innerHTML=((+d.connected)?'PC Connected ':'PC Disonnected')+' &nbsp; '+dt.toLocaleTimeString()+' &nbsp; '+d.rssi+'dB'
       break
     case 'alert':
       alert(d.text)
       break
     case 'data':
       dt=new Date(d.t*1000)
-      a.topbar.innerHTML=((+d.connected)?'PC Connected ':'PC Disonnected')+' &nbsp; '+dt.toLocaleTimeString()+' &nbsp; &nbsp; '+d.rssi+'dB  &nbsp; '
+      a.topbar.innerHTML=((+d.connected)?'PC Connected ':'PC Disonnected')+' &nbsp; '+dt.toLocaleTimeString()+' &nbsp; '+d.rssi+'dB'
       upsState=d
       draw()
       break
@@ -107,31 +107,31 @@ function draw(){
 
   c.font='10pt sans-serif'
   c.fillText("Input", 28, 10)
-  c.fillText(upsState.battPercent+'%', 150, 10)
-  c.fillText("Output", 240, 10)
+  c.fillText(upsState.battPercent+'%', 130, 10)
+  c.fillText("Output", 200, 10)
 
   c.fillStyle='red'
   if(+upsState.UPS)
-    c.fillText("UPS", 274, 10)
+    c.fillText("UPS", 234, 10)
   if(+upsState.AC)
-    c.fillText("AC", 70, 10)
+    c.fillText("AC", 60, 10)
 
   c.fillStyle=c.strokeStyle='black'
   c.font='italic 20pt sans-serif'
   if(upsState.voltsIn)
     c.fillText(upsState.voltsIn+'v', 64, 38)
-  c.fillText(upsState.voltsOut+'v', 260, 38)
+  c.fillText(upsState.voltsOut+'v', 220, 38)
   c.fillText(upsState.wattsIn+'w', 64, 76)
-  c.fillText(upsState.wattsOut+'w', 260, 76)
+  c.fillText(upsState.wattsOut+'w', 220, 76)
 
-  c.fillStyle=c.strokeStyle='green'
+  c.fillStyle=c.strokeStyle='rgb(0,120,255)'
   y = 76
   for(i = 0; i < 5; i++)
   {
     if(i >= upsState.BATT)
-      c.strokeRect(104+1, y+1, 50-2, 10-2)
+      c.strokeRect(94+1, y+1, 40-2, 10-2)
     else
-      c.fillRect(104, y, 50, 10)
+      c.fillRect(94, y, 40, 10)
     y -= 12
   }
 }
@@ -142,19 +142,19 @@ key=localStorage.getItem('key')
 if(key!=null) document.getElementById('myKey').value=key
 openSocket()
 }">
-<table width=310>
+<table width=270>
 <tr><td><div id='topbar'></div></td></tr>
 
 <tr><td>
-  <input type="button" value="SHUTDOWN" onClick="{shutdown()}"><input type="button" value="HIBERNATE" onClick="{hibernate()}">
+  <input type="button" value="SHUTDOWN" onClick="{shutdown()}"><input type="button" value="HIBER" onClick="{hibernate()}">
   <input id="myKey" name="key" type=text size=40 placeholder="password" style="width: 100px" onChange="{localStorage.setItem('key', key = document.all.myKey.value)}"></td></tr>
  
 </table>
 
-<table width=310>
+<table width=270>
 <tr><td>
 <div id="wrapper">
-<canvas id="chart" width="280" height="100"></canvas>
+<canvas id="chart" width="240" height="100"></canvas>
 </div>
 </td></tr>
 </table></body>
