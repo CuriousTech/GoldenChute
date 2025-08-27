@@ -343,7 +343,6 @@ void setup()
   pinMode(SSR, OUTPUT);
   prefs.init();
 
-  strcpy(prefs.szPassword, "esp8266ct");
   WiFi.hostname(prefs.szName);
   WiFi.mode(WIFI_STA);
 
