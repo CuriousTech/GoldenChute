@@ -66,10 +66,11 @@ JsonParse jsonParse(jsonCallback);
 
 Prefs prefs;
 
-bool bConfigDone;
-bool bStarted;
+bool bConfigDone; // EspTouch config
+bool bStarted; // WiFi started
 uint32_t connectTimer;
 bool bGMFormatSerial;
+uint32_t spiMS;
 
 // percent calculator
 uint8_t nLevelPercent;
@@ -311,14 +312,21 @@ void ICACHE_RAM_ATTR CLK_ISR()
 void ICACHE_RAM_ATTR CS_ISR() // CS raises after 13th bit
 {
   if(hx.h.cmd != 5) // write to address
+  {
+    hx.w = 0; // clear if different command or display is off (high-Z state)
     return;
+  }
   if(hx.h.addr & 0x20) // block addr over 31
+  {
+    hx.w = 0;
     return;
+  }
 
   ups_nibble[hx.h.addr] = hx.h.data;
   if(hx.h.addr == 29) // last value complete
     bReady = true;
-} 
+  hx.w = 0; // clear just in case
+}
 
 // Do a simple checksum and set the head value
 void checksumData()
@@ -429,6 +437,7 @@ void loop()
   if(bReady)
   {
     bReady = false;
+    spiMS = millis();
 
     if( decodeSegments(binPayload) )
     {
@@ -479,14 +488,23 @@ void loop()
     static uint8_t nSSRsecs = 1;
     if(--nSSRsecs == 0)
     {
-      if(binPayload.b.OnUPS == 0) // display stays on when on backup
+      if(binPayload.b.OnUPS == 0 || millis() - spiMS > 1200 ) // display stays on when on backup, but check for data anyway (could glitch)
+      {
+        if(millis() - spiMS > 1200)
+        {
+          memset(&binPayload, 0, sizeof(binPayload)); // could be invalid
+          spiMS = millis();
+        }
         bPushSSR = true;
+      }
       nSSRsecs = 58;
     }
 
     // send some basic info to web page (keepalive) if no other data sent recently
     if(millis() - sentMS > 1000)
+    {
       sendState();
+    }
 
     // WiFi async connect stuff
     if(!bConfigDone)
@@ -670,46 +688,53 @@ bool decodeSegments(upsData& udata)
   udata.b.OnUPS = (ups_nibble[18] & 8) ? true:false;
   udata.b.OnAC = (ups_nibble[25] & 8) ? true:false;
 
+  if(udata.b.OnAC && udata.b.OnUPS) // bad data
+    udata.b.OnUPS = 0;
+
   vIn[0]  = convertVDig(24); vIn[1]  = convertVDig(26); vIn[2]  = convertVDig(28);
   vOut[0] = convertVDig(17); vOut[1] = convertVDig(19); vOut[2] = convertVDig(21);
-  wIn[0]  = convertWDig(0);  wIn[1]  = convertWDig(2);  wIn[2]  = convertWDig(4); wIn[3] = convertWDig(6);
+  wIn[0]  = convertWDig(0);  wIn[1]  = convertWDig(2);  wIn[2]  = convertWDig(4);  wIn[3]  = convertWDig(6);
   wOut[0] = convertWDig(9);  wOut[1] = convertWDig(11); wOut[2] = convertWDig(13); wOut[3] = convertWDig(15);
 
   // check for valid digits
+  uint16_t voltsIn = 0;
+  uint16_t voltsOut = 0;
+
   if(vIn[0] != 0xFF && vIn[1] != 0xFF && vIn[2] != 0xFF)
-  {
-    uint16_t volts = vIn[0] + ( vIn[1] * 10) + (vIn[2] * 100);
-    if(volts <= 125) // change if 240V
-      udata.VoltsIn = volts;
-  }
+    voltsIn = vIn[0] + ( vIn[1] * 10) + (vIn[2] * 100);
+
   if(vOut[0] != 0xFF && vOut[1] != 0xFF && vOut[2] != 0xFF)
-  {
-    uint16_t volts = vOut[0] + ( vOut[1] * 10) + (vOut[2] * 100);
-    if(volts <= 125)
-      udata.VoltsOut = volts;
-  }
+    voltsOut = vOut[0] + ( vOut[1] * 10) + (vOut[2] * 100);
+
   if(wIn[0] != 0xFF && wIn[1] != 0xFF && wIn[2] != 0xFF && wIn[3] != 0xFF)
     udata.WattsIn = (wIn[0] * 1000) + (wIn[1] * 100) + (wIn[2] * 10) + wIn[3];
 
   if(wOut[0] != 0xFF && wOut[1] != 0xFF && wOut[2] != 0xFF && wOut[3] != 0xFF)
     udata.WattsOut = (wOut[0] * 1000) + (wOut[1] * 100) + (wOut[2] * 10) + wOut[3];
 
-  if(udata.VoltsIn == 0 && udata.VoltsOut == 0) // blank display glitch
+  if(voltsIn <= 125) // change if 240V
+    udata.VoltsIn = voltsIn;
+  if(voltsOut && voltsOut <= 125) // should never be 0
+    udata.VoltsOut = voltsOut;
+
+  switch( (ups_nibble[8] << 1) | (ups_nibble[9] & 1) )
   {
-    return false;
+    case 0b00000: udata.b.battDisplay = 0; break; // <= 4%
+    case 0b10000: udata.b.battDisplay = 1; break; // 11-19% blinking = 5-9%
+    case 0b11000: udata.b.battDisplay = 2; break; // 20-39%
+    case 0b11100: udata.b.battDisplay = 3; break; // 40-59%
+    case 0b11110: udata.b.battDisplay = 4; break; // 60-79%
+    case 0b11111: udata.b.battDisplay = 5; break; // 90-100% blinking = 80-89%
   }
 
-  uint8_t battBits = (ups_nibble[8] << 1) | (ups_nibble[9] & 1);
-
-  switch(battBits)
+  switch(udata.b.battDisplay)
   {
-    case 0b00000: udata.b.battDisplay = 0; udata.b.battLevel = 0; break; // <= 4%
-    case 0b10000: udata.b.battDisplay = 1; udata.b.battLevel = 2; break; // 11-19% blinking = 5-9%
-    case 0b11000: udata.b.battDisplay = 2; udata.b.battLevel = 3; break; // 20-39%
-    case 0b11100: udata.b.battDisplay = 3; udata.b.battLevel = 4; break; // 40-59%
-    case 0b11110: udata.b.battDisplay = 4; udata.b.battLevel = 5; break; // 60-79%
-    case 0b11111: udata.b.battDisplay = 5; udata.b.battLevel = 7; break; // 90-100% blinking = 80-89%
-    default: return false; // anything else
+    case 0: udata.b.battLevel = 0; break; // <= 4%
+    case 1: udata.b.battLevel = 2; break; // 11-19% blinking = 5-9%
+    case 2: udata.b.battLevel = 3; break; // 20-39%
+    case 3: udata.b.battLevel = 4; break; // 40-59%
+    case 4: udata.b.battLevel = 5; break; // 60-79%
+    case 5: udata.b.battLevel = 7; break; // 90-100% blinking = 80-89%
   }
 
   // alternating display 1
