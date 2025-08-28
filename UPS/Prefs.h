@@ -19,8 +19,8 @@ public:
   char      szSSIDPassword[64] = ""; // password for router
   char      szName[32] = "UPS"; // mDNS and OTA name
   char      szPassword[32] = "password"; // password for web
-  int16_t  tzo; // timezone offset
-  uint8_t   res[28];
+  int16_t   tzo; // timezone offset
+  uint8_t   res[28]; // change the length to force overwrite
   uint8_t   end;
 private:
   uint16_t Fletcher16( uint8_t* data, int count);
