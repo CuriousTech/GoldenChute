@@ -83,7 +83,8 @@ struct flagBits{
   uint16_t OnAC : 1;
   uint16_t error : 1; // WattsIn will be error #
   uint16_t model : 3; // 0 = 1000VA, 1 = 1500VA, 2 = 2000VA 
-  uint16_t reserved1 : 4;
+  uint16_t reserved1 : 3;
+  uint16_t noData : 1; // display timeout indicator
   uint16_t battDisplay : 3; // 0-5
   uint16_t battLevel : 3; // 0-7 (will be phased out)
 };
@@ -127,6 +128,7 @@ String dataJson()
   int sig = WiFi.RSSI();
   js.Var("rssi", sig);
   js.Var("connected", binClientCnt);
+  js.Var("nodata", binPayload.b.noData);
   return js.Close();
 }
 
@@ -147,6 +149,7 @@ String statusJson()
   js.Var("LVL", binPayload.b.battLevel);
   js.Var("battPercent", binPayload.battPercent );
   js.Var("error", binPayload.b.error);
+  js.Var("nodata", binPayload.b.noData);
   return js.Close();
 }
 
@@ -292,8 +295,18 @@ void onBinEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEvent
     case WS_EVT_PONG:    //pong message was received (in response to a ping request maybe)
       break;
     case WS_EVT_DATA:  //data packet
+      AwsFrameInfo * info = (AwsFrameInfo*)arg;
+      if(info->final && info->index == 0 && info->len == len){
+        //the whole message is in a single frame and we got all of it's data
+        processBin(data, len);
+      }
       break;
   }
+}
+
+void processBin(uint8_t *pData, uint16_t len)
+{
+  // for future commands
 }
 
 void alert(String txt)
@@ -453,7 +466,7 @@ void loop()
 
       if(bGMFormatSerial)
       {
-        Serial.write((uint8_t*)&binPayload, sizeof(binPayload) );        
+        Serial.write((uint8_t*)&binPayload, sizeof(binPayload) );
       }
       else if(binPayload.b.error)
       {
@@ -474,10 +487,6 @@ void loop()
         Serial.println(s);
       }
     }
-    else
-    {
-      // todo: serial keepalive
-    }
   }
 
   if(millis() - lastMS >= 1000) // only do stuff once per second
@@ -490,10 +499,24 @@ void loop()
     {
       if(binPayload.b.OnUPS == 0 || millis() - spiMS > 1200 ) // display stays on when on backup, but check for data anyway (could glitch)
       {
-        if(millis() - spiMS > 1200)
+        if(millis() - spiMS > 1200) // no data. Maybe disconnected or button press failed
         {
-          memset(&binPayload, 0, sizeof(binPayload)); // could be invalid
+          binPayload.b.noData = 1;
           spiMS = millis();
+          
+          if(binClientCnt) // send to Windows Goldenchute client(s)
+          {
+            wsb.binaryAll((uint8_t*)&binPayload, sizeof(binPayload));
+          }
+    
+          if(bGMFormatSerial)
+          {
+            Serial.write((uint8_t*)&binPayload, sizeof(binPayload) );
+          }
+          else // generic text
+          {
+            Serial.println("NODATA");          
+          }
         }
         bPushSSR = true;
       }
@@ -675,6 +698,8 @@ bool decodeSegments(upsData& udata)
   uint8_t wIn[4];
   uint8_t wOut[4];
   static uint8_t lastBattDisp;
+
+  udata.b.noData = 0;
 
   if(convertWDig(2) == 10) // U## error display
   {
