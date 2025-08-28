@@ -26,7 +26,7 @@ body{width:490px;display:block;text-align:right;font-family: Arial, Helvetica, s
 <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.6.1/jquery.min.js" type="text/javascript" charset="utf-8"></script>
 <script type="text/javascript">
 a=document.all
-
+noData=0
 errorTxt=[
   "",
   "Low Voltage", // 1
@@ -54,6 +54,7 @@ function openSocket(){
     case 'state':
       dt=new Date(d.t*1000)
       a.topbar.innerHTML=((+d.connected)?'PC Connected ':'PC Disonnected')+' &nbsp; '+dt.toLocaleTimeString()+' &nbsp; '+d.rssi+'dB'
+      noData=+d.nodata
       break
     case 'alert':
       alert(d.text)
@@ -62,6 +63,7 @@ function openSocket(){
       dt=new Date(d.t*1000)
       a.topbar.innerHTML=((+d.connected)?'PC Connected ':'PC Disonnected')+' &nbsp; '+dt.toLocaleTimeString()+' &nbsp; '+d.rssi+'dB'
       upsState=d
+      noData=+d.nodata
       draw()
       break
   }
@@ -101,7 +103,14 @@ function draw(){
     c.fillText(errorTxt[Math.floor(upsState.WattsIn/10)], 14, 88)
     return
   }
-
+  if(noData)
+  {
+    c.font='20pt sans-serif'
+    c.textAlign="left"
+    c.textBaseline="middle"
+    c.fillText('NO DISPLAY DATA', 14, 20)
+    return
+  }
   c.textAlign="right"
   c.textBaseline="middle"
 
