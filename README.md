@@ -31,8 +31,9 @@ The female XHB (XH works well, and a plain female pinheader actually holds well 
 ![Back](assets/notch.jpg)  
 Cut a notch in the rear panel to fit the USB cable.  
   
-Arduino: Settings for router SSID and SSID password are in Prefs.h, as well as the remote password for web control. If they aren't set or the SSID changes, EspTouch can be used.  
-Compiling the code should be easy. Most information is in UPS.ino, like where to get the libraries needed, and settings for the ESP32-C3-super mini such as enabling CDC on boot (for serial output). There's also an ESP32-S3 super mini that is pin compatible.  (The pin assignments are incorrect ATM. They will be changed when I get the new PCB)  
+**Arduino:**  
+Settings for router SSID and SSID password are in Prefs.h, as well as the remote password for web control. If they aren't set or the SSID changes, EspTouch can be used.  
+Compiling the code should be easy. Most information is in UPS.ino, like where to get the libraries needed, and settings for the ESP32-C3-super mini such as enabling CDC on boot (for serial output). There's also an ESP32-S3 super mini that is pin compatible.  
   
 **Windows app:**  
 Extract the exe and move it to somewhere like C:\Goldenamte.  
