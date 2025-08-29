@@ -589,23 +589,16 @@ void loop()
 // Called when the battery level changes
 void levelChange()
 {
-  binPayload.battPercent = nLevelPercent = battLevels[binPayload.b.battLevel]; // current percent at new bar display
-  nBarPercent = 0; // percent for current bar
-
   if (binPayload.b.OnUPS) // bar dropped
   {
-    if (binPayload.b.battLevel)
-    {
-      nBarPercent = nLevelPercent - battLevels[binPayload.b.battLevel - 1];
-    }
-    else nBarPercent = battLevels[0]; // no bars (last 5%)
+    nBarPercent = nLevelPercent = battLevels[binPayload.b.battLevel];
+    binPayload.battPercent = battLevels[binPayload.b.battLevel];
   }
-  else if(binPayload.b.battLevel != 7) // bar incremented
+  else // bar increment (start at bottom percent of next bar)
   {
-    nBarPercent = battLevels[binPayload.b.battLevel + 1] - nLevelPercent;
+    binPayload.battPercent = nLevelPercent = battLevels[binPayload.b.battLevel - 1] + 1;
+    nBarPercent = battLevels[binPayload.b.battLevel] - nLevelPercent;
   }
-  else
-    nBarPercent = 10; // level 7 = 10%
 
   uint16_t nWhTotal = 900; // 90% efficiency
   switch(binPayload.b.model)
@@ -620,18 +613,11 @@ void levelChange()
 
 void calcPercent()
 {
-  static uint8_t nCnt = 0;
   static uint8_t lvl = 0;
 
-  if (binPayload.b.battLevel != lvl) // skip first second of change (top bar blinks once every few hours when it tops off?)
+  if (binPayload.b.battLevel != lvl)
   {
-    nCnt = 0;
     lvl = binPayload.b.battLevel;
-  }
-  else if(nCnt < 10) nCnt++;
-
-  if (nCnt == 2)
-  {
     levelChange();
   }
 
@@ -656,10 +642,10 @@ void calcPercent()
 
     if (binPayload.b.OnUPS)
     {
-      if (nLevelPercent - percDiff > 0)
+      if (nLevelPercent - percDiff >= 0)
         binPayload.battPercent = nLevelPercent - percDiff;
     }
-    else if (binPayload.b.battLevel < 7)
+    else
       binPayload.battPercent = nLevelPercent + percDiff;
   }
 }
@@ -697,7 +683,7 @@ bool decodeSegments(upsData& udata)
   uint8_t vOut[3];
   uint8_t wIn[4];
   uint8_t wOut[4];
-  static uint8_t lastBattDisp;
+  static uint8_t lastBattDisp[3];
 
   udata.b.noData = 0;
 
@@ -762,14 +748,20 @@ bool decodeSegments(upsData& udata)
     case 5: udata.b.battLevel = 7; break; // 90-100% blinking = 80-89%
   }
 
-  // alternating display 1
-  if((lastBattDisp == 1 && udata.b.battDisplay == 0) || (lastBattDisp == 0 && udata.b.battDisplay == 1))
+  // alternating display 1 (sometimes skips, probably not timed with output)
+  if(udata.b.battDisplay == 0 && (lastBattDisp[0] == 1 || lastBattDisp[1] == 1 || lastBattDisp[2] == 1))
+      udata.b.battLevel = 1;
+  if(udata.b.battDisplay == 1 && (lastBattDisp[0] == 0 || lastBattDisp[1] == 0 || lastBattDisp[2] == 0))
       udata.b.battLevel = 1;
   // alternating display 5
-  if((lastBattDisp == 5 && udata.b.battDisplay == 4) || (lastBattDisp == 4 && udata.b.battDisplay == 5))
+  if(udata.b.battDisplay == 5 && (lastBattDisp[0] == 4 || lastBattDisp[1] == 4 || lastBattDisp[2] == 4))
+      udata.b.battLevel = 6;
+  if(udata.b.battDisplay == 4 && (lastBattDisp[0] == 5 || lastBattDisp[1] == 5 || lastBattDisp[2] == 5))
       udata.b.battLevel = 6;
 
-  lastBattDisp = udata.b.battDisplay;
+  lastBattDisp[0] = lastBattDisp[1]; // record enough history to detect the skip
+  lastBattDisp[1] = lastBattDisp[2];
+  lastBattDisp[2] = udata.b.battDisplay;
 
   return true;
 }
