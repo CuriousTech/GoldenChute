@@ -53,7 +53,7 @@ function openSocket(){
   {
     case 'state':
       dt=new Date(d.t*1000)
-      a.topbar.innerHTML=((+d.connected)?'PC Connected ':'PC Disonnected')+' &nbsp; '+dt.toLocaleTimeString()+' &nbsp; '+d.rssi+'dB'
+      a.topbar.innerHTML=((+d.connected)?'PC Connected ':'PC Disonnected')+'&nbsp; '+dt.toLocaleTimeString()+' &nbsp;'+d.rssi+'dB'
       noData=+d.nodata
       break
     case 'alert':
@@ -61,7 +61,7 @@ function openSocket(){
       break
     case 'data':
       dt=new Date(d.t*1000)
-      a.topbar.innerHTML=((+d.connected)?'PC Connected ':'PC Disonnected')+' &nbsp; '+dt.toLocaleTimeString()+' &nbsp; '+d.rssi+'dB'
+      a.topbar.innerHTML=((+d.connected)?'PC Connected ':'PC Disonnected')+'&nbsp; '+dt.toLocaleTimeString()+' &nbsp;'+d.rssi+'dB'
       upsState=d
       noData=+d.nodata
       draw()
@@ -151,7 +151,7 @@ key=localStorage.getItem('key')
 if(key!=null) document.getElementById('myKey').value=key
 openSocket()
 }">
-<table width=270>
+<table width=278>
 <tr><td><div id='topbar'></div></td></tr>
 
 <tr><td>
@@ -160,10 +160,10 @@ openSocket()
  
 </table>
 
-<table width=270>
+<table width=278>
 <tr><td>
 <div id="wrapper">
-<canvas id="chart" width="240" height="100"></canvas>
+<canvas id="chart" width="250" height="100"></canvas>
 </div>
 </td></tr>
 </table></body>
