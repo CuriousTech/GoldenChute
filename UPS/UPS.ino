@@ -586,17 +586,26 @@ void loop()
   checkSerial();
 }
 
-// Called when the battery level changes
+// Called when the battery level changes (or startup)
 void levelChange()
 {
-  if (binPayload.b.OnUPS) // bar dropped
+  if (binPayload.b.OnUPS) // bar dropped or backup started
   {
-    nBarPercent = nLevelPercent = battLevels[binPayload.b.battLevel];
-    binPayload.battPercent = battLevels[binPayload.b.battLevel];
+    if(binPayload.b.battLevel)
+    {
+      nLevelPercent = battLevels[binPayload.b.battLevel - 1];
+      nBarPercent = battLevels[binPayload.b.battLevel] - battLevels[binPayload.b.battLevel - 1];
+    }
+    else
+    {
+      nLevelPercent = 0;
+      nBarPercent = battLevels[0]; // last 4%
+    }
+    binPayload.battPercent = battLevels[binPayload.b.battLevel]; // incorrrect but using anyway
   }
   else // bar increment (start at bottom percent of next bar)
   {
-    binPayload.battPercent = nLevelPercent = battLevels[binPayload.b.battLevel - 1] + 1;
+    binPayload.battPercent = nLevelPercent = battLevels[binPayload.b.battLevel - 1];
     nBarPercent = battLevels[binPayload.b.battLevel] - nLevelPercent;
   }
 
@@ -608,45 +617,61 @@ void levelChange()
   }
 
   nWattsPerBar = nWhTotal * nBarPercent / 100 * 3600; // watt hours per current bar to watt seconds
-  nWattsAccum = 0; // reset accumulator on level change
+
+  if(binPayload.b.OnUPS)
+    nWattsAccum = nWattsPerBar; // will be decrementing
+  else
+    nWattsAccum = 0; // will be incrementing
 }
 
 void calcPercent()
 {
   static uint8_t lvl = 0;
+  static uint8_t cnt = 0;
+  static bool lastOnUPS;
 
-  if (binPayload.b.battLevel != lvl)
+  if (binPayload.b.battLevel != lvl || (binPayload.b.OnUPS && !lastOnUPS) ) // Switching to backup triggers level change to start accumulator
   {
     lvl = binPayload.b.battLevel;
     levelChange();
   }
+  else if (binPayload.b.OnUPS == 0 && lastOnUPS) // Switching off battery
+  {
+
+  }
 
   if (binPayload.b.OnUPS)
   {
-    nWattsAccum += binPayload.WattsIn; // discharge watts (battery is likely WattsIn)
+    cnt  = 0;
+    if(nWattsAccum > binPayload.WattsIn)
+      nWattsAccum -= binPayload.WattsIn; // discharge watts (battery is likely WattsIn)
   }
   else
   {
-    nWattsAccum += binPayload.WattsIn - binPayload.WattsOut - 1; // charge watts + 1W
+    if(cnt < 10) cnt++; // needs 2-3 seconds to start charge after switching to AC
 
-    if(binPayload.WattsIn - binPayload.WattsOut <= 1 && binPayload.b.battLevel == 7) // not charging
+    if(binPayload.WattsIn - binPayload.WattsOut <= 1 && binPayload.b.battLevel == 7) // not charging + level 7 = full
     {
-      binPayload.battPercent = 100;
-      nBarPercent = 0;
+      if(cnt > 2)
+      {
+        binPayload.battPercent = 100;
+        nBarPercent = 0;
+      }
+    }
+    else
+    {
+      nWattsAccum += binPayload.WattsIn - binPayload.WattsOut - 1; // charge watts - 1W running power
+      cnt  = 0;
     }
   }
+
+  lastOnUPS = binPayload.b.OnUPS;
 
   if (nBarPercent)
   {
     int percDiff = nWattsAccum * nBarPercent / nWattsPerBar;
 
-    if (binPayload.b.OnUPS)
-    {
-      if (nLevelPercent - percDiff >= 0)
-        binPayload.battPercent = nLevelPercent - percDiff;
-    }
-    else
-      binPayload.battPercent = nLevelPercent + percDiff;
+    binPayload.battPercent = nLevelPercent + percDiff;
   }
 }
 
@@ -730,18 +755,18 @@ bool decodeSegments(upsData& udata)
 
   switch( (ups_nibble[8] << 1) | (ups_nibble[9] & 1) )
   {
-    case 0b00000: udata.b.battDisplay = 0; break; // <= 4%
-    case 0b10000: udata.b.battDisplay = 1; break; // 11-19% blinking = 5-9%
-    case 0b11000: udata.b.battDisplay = 2; break; // 20-39%
-    case 0b11100: udata.b.battDisplay = 3; break; // 40-59%
-    case 0b11110: udata.b.battDisplay = 4; break; // 60-79%
-    case 0b11111: udata.b.battDisplay = 5; break; // 90-100% blinking = 80-89%
+    case 0b00000: udata.b.battDisplay = 0; break;
+    case 0b10000: udata.b.battDisplay = 1; break;
+    case 0b11000: udata.b.battDisplay = 2; break;
+    case 0b11100: udata.b.battDisplay = 3; break;
+    case 0b11110: udata.b.battDisplay = 4; break;
+    case 0b11111: udata.b.battDisplay = 5; break;
   }
 
   switch(udata.b.battDisplay)
   {
     case 0: udata.b.battLevel = 0; break; // <= 4%
-    case 1: udata.b.battLevel = 2; break; // 11-19% blinking = 5-9%
+    case 1: udata.b.battLevel = 2; break; // 10-19% blinking = 5-9%
     case 2: udata.b.battLevel = 3; break; // 20-39%
     case 3: udata.b.battLevel = 4; break; // 40-59%
     case 4: udata.b.battLevel = 5; break; // 60-79%
