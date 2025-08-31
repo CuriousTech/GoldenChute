@@ -51,7 +51,8 @@ int nWrongPass;
 
 int8_t nWsConnected;
 
-const byte battLevels[] = {4, 9, 19, 39, 59, 79, 89, 100};
+// The battery levels for each bar and blinking bar. These are from testing and don't match the documented values. Plus, the battery drains at double the expected rate.
+const byte battLevels[] = {4, 9, 29, 49, 69, 89, 95, 100};
 
 AsyncWebServer server( 80 );
 AsyncWebSocket ws("/ws"); // access at ws://[esp ip]/ws
@@ -71,6 +72,7 @@ bool bStarted; // WiFi started
 uint32_t connectTimer;
 bool bGMFormatSerial;
 uint32_t spiMS;
+bool bNeedRestart; // display may need fix after switching from battery to AC
 
 // percent calculator
 uint8_t nLevelPercent;
@@ -158,6 +160,7 @@ const char *jsonList1[] = {
   "tzo",
   "hibernate",
   "shutdown",
+  "restart",
   NULL
 };
 
@@ -222,6 +225,9 @@ void jsonCallback(int16_t iName, int iValue, char *psValue)
         static uint8_t data2[] = {0xAB, 'S','H','D','N'};
         Serial.write(data2, 5);
       }
+      break;
+    case 4: // restart
+      bNeedRestart = true;
       break;
   }
 }
@@ -450,7 +456,7 @@ void loop()
   if(bReady)
   {
     bReady = false;
-    spiMS = millis();
+    spiMS = millis(); // time between each frame is ~980ms including the 14ms of 30 values
 
     if( decodeSegments(binPayload) )
     {
@@ -492,18 +498,35 @@ void loop()
   if(millis() - lastMS >= 1000) // only do stuff once per second
   {
     lastMS = millis();
+    static uint8_t nSSRsecs = 1;
+    static bool bRestartingDisplay = false;
+
+    // Fix for display going wonky after returning to AC power
+    if(binPayload.b.OnUPS == 0)
+    {
+      if( bNeedRestart )
+      {
+        bNeedRestart = false;
+        bRestartingDisplay = true; // ignore upcoming SPI timeout
+        nSSRsecs = 65; // Set to higher than display timeout
+      }
+
+      if( bRestartingDisplay && millis() - spiMS > 1200) // catch the poweroff
+      {
+        nSSRsecs = 1; // and ready to turn back on
+      }
+    }
 
     // simulate button press every ~60s or less (anything under will reset the timeout)
-    static uint8_t nSSRsecs = 1;
     if(--nSSRsecs == 0)
     {
       if(binPayload.b.OnUPS == 0 || millis() - spiMS > 1200 ) // display stays on when on backup, but check for data anyway (could glitch)
       {
-        if(millis() - spiMS > 1200) // no data. Maybe disconnected or button press failed
+        if(millis() - spiMS > 1200 && bRestartingDisplay == false) // no data. Maybe disconnected or button press failed
         {
           binPayload.b.noData = 1;
           spiMS = millis();
-          
+
           if(binClientCnt) // send to Windows Goldenchute client(s)
           {
             wsb.binaryAll((uint8_t*)&binPayload, sizeof(binPayload));
@@ -518,6 +541,7 @@ void loop()
             Serial.println("NODATA");          
           }
         }
+        bRestartingDisplay = false;
         bPushSSR = true;
       }
       nSSRsecs = 58;
@@ -605,7 +629,7 @@ void levelChange()
   }
   else // bar increment (start at bottom percent of next bar)
   {
-    binPayload.battPercent = nLevelPercent = battLevels[binPayload.b.battLevel - 1];
+    binPayload.battPercent = nLevelPercent = battLevels[binPayload.b.battLevel - 1] + 1;
     nBarPercent = battLevels[binPayload.b.battLevel] - nLevelPercent;
   }
 
@@ -616,7 +640,8 @@ void levelChange()
     case 2: nWhTotal = 1800; break; // 2000
   }
 
-  nWattsPerBar = nWhTotal * nBarPercent / 100 * 3600; // watt hours per current bar to watt seconds
+
+  nWattsPerBar = nWhTotal * nBarPercent / 100 * 1800; // watt hours per current bar to watt seconds (3600 was way too high!)
 
   if(binPayload.b.OnUPS)
     nWattsAccum = nWattsPerBar; // will be decrementing
@@ -637,7 +662,7 @@ void calcPercent()
   }
   else if (binPayload.b.OnUPS == 0 && lastOnUPS) // Switching off battery
   {
-
+    bNeedRestart = true;
   }
 
   if (binPayload.b.OnUPS)
@@ -708,7 +733,7 @@ bool decodeSegments(upsData& udata)
   uint8_t vOut[3];
   uint8_t wIn[4];
   uint8_t wOut[4];
-  static uint8_t lastBattDisp[3];
+  static uint8_t lastBattDisp[4];
 
   udata.b.noData = 0;
 
@@ -766,27 +791,26 @@ bool decodeSegments(upsData& udata)
   switch(udata.b.battDisplay)
   {
     case 0: udata.b.battLevel = 0; break; // <= 4%
-    case 1: udata.b.battLevel = 2; break; // 10-19% blinking = 5-9%
-    case 2: udata.b.battLevel = 3; break; // 20-39%
-    case 3: udata.b.battLevel = 4; break; // 40-59%
-    case 4: udata.b.battLevel = 5; break; // 60-79%
-    case 5: udata.b.battLevel = 7; break; // 90-100% blinking = 80-89%
+    case 1: udata.b.battLevel = 2; break; // blinking = 5-9%  solid = 10-29%
+    case 2: udata.b.battLevel = 3; break; // 30-49%
+    case 3: udata.b.battLevel = 4; break; // 50-69%
+    case 4: udata.b.battLevel = 5; break; // 70-89%
+    case 5: udata.b.battLevel = 7; break; // blinking = 90-94%  solid = 95-100%
   }
 
   // alternating display 1 (sometimes skips, probably not timed with output)
-  if(udata.b.battDisplay == 0 && (lastBattDisp[0] == 1 || lastBattDisp[1] == 1 || lastBattDisp[2] == 1))
+  if(udata.b.battDisplay == 0 && (lastBattDisp[0] == 1 || lastBattDisp[1] == 1 || lastBattDisp[2] == 1 || lastBattDisp[3] == 1))
       udata.b.battLevel = 1;
-  if(udata.b.battDisplay == 1 && (lastBattDisp[0] == 0 || lastBattDisp[1] == 0 || lastBattDisp[2] == 0))
+  if(udata.b.battDisplay == 1 && (lastBattDisp[0] == 0 || lastBattDisp[1] == 0 || lastBattDisp[2] == 0 || lastBattDisp[3] == 0))
       udata.b.battLevel = 1;
   // alternating display 5
-  if(udata.b.battDisplay == 5 && (lastBattDisp[0] == 4 || lastBattDisp[1] == 4 || lastBattDisp[2] == 4))
+  if(udata.b.battDisplay == 5 && (lastBattDisp[0] == 4 || lastBattDisp[1] == 4 || lastBattDisp[2] == 4 || lastBattDisp[3] == 4))
       udata.b.battLevel = 6;
-  if(udata.b.battDisplay == 4 && (lastBattDisp[0] == 5 || lastBattDisp[1] == 5 || lastBattDisp[2] == 5))
+  if(udata.b.battDisplay == 4 && (lastBattDisp[0] == 5 || lastBattDisp[1] == 5 || lastBattDisp[2] == 5 || lastBattDisp[3] == 5))
       udata.b.battLevel = 6;
 
-  lastBattDisp[0] = lastBattDisp[1]; // record enough history to detect the skip
-  lastBattDisp[1] = lastBattDisp[2];
-  lastBattDisp[2] = udata.b.battDisplay;
+  memcpy(lastBattDisp, lastBattDisp + 1, sizeof(lastBattDisp) - 1); // record enough history to detect the skip
+  lastBattDisp[3] = udata.b.battDisplay;
 
   return true;
 }
