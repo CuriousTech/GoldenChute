@@ -155,9 +155,9 @@ openSocket()
 <tr><td><div id='topbar'></div></td></tr>
 
 <tr><td>
-  <input type="button" value="SHUTDOWN" onClick="{shutdown()}"><input type="button" value="HIBER" onClick="{hibernate()}">
-  <input id="myKey" name="key" type=text size=40 placeholder="password" style="width: 100px" onChange="{localStorage.setItem('key', key = document.all.myKey.value)}"></td></tr>
- 
+  <input type="button" value="SHUTDOWN" onClick="{shutdown()}"> <input type="button" value="HIBERNATE" onClick="{hibernate()}"> 
+  <input type="button" value="FIX" onClick="{setVar('restart',0)}"></td></tr>
+<tr><td><input id="myKey" name="key" type=text size=40 placeholder="password" style="width: 100px" onChange="{localStorage.setItem('key', key = document.all.myKey.value)}"></td></tr>
 </table>
 
 <table width=278>
