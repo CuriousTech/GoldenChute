@@ -460,9 +460,9 @@ void loop()
 
     if( decodeSegments(binPayload) )
     {
-      checksumData(); // prepare it for transmit
       sentMS = millis();
       calcPercent();
+      checksumData(); // prepare it for transmit
       ws.textAll( statusJson() ); // send to web page or other websocket clients
 
       if(binClientCnt) // send to Windows Goldenchute client
@@ -478,7 +478,7 @@ void loop()
       {
         String s = "ERROR ";
         s += binPayload.WattsIn; // Send error code text
-        Serial.println(s);        
+        Serial.println(s);
       }
       else
       {
@@ -526,13 +526,14 @@ void loop()
         {
           binPayload.b.noData = 1;
           spiMS = millis();
+          checksumData(); // prepare it for transmit
 
           if(binClientCnt) // send to Windows Goldenchute client(s)
           {
             wsb.binaryAll((uint8_t*)&binPayload, sizeof(binPayload));
           }
     
-          if(bGMFormatSerial)
+          if(bGMFormatSerial) // binary over serial
           {
             Serial.write((uint8_t*)&binPayload, sizeof(binPayload) );
           }
