@@ -51,8 +51,8 @@ int nWrongPass;
 
 int8_t nWsConnected;
 
-// The battery levels for each bar and blinking bar. These are from testing and don't match the documented values. Plus, the battery drains at double the expected rate.
-const byte battLevels[] = {4, 9, 29, 49, 69, 89, 95, 100};
+// The battery levels for each bar and blinking bar
+const byte battLevels[] = { 4, 9, 19, 39, 59, 79, 89, 100 };
 
 AsyncWebServer server( 80 );
 AsyncWebSocket ws("/ws"); // access at ws://[esp ip]/ws
@@ -640,8 +640,8 @@ void levelChange()
     case 2: nWhTotal = 1800; break; // 2000
   }
 
-
-  nWattsPerBar = nWhTotal * nBarPercent / 100 * 1800; // watt hours per current bar to watt seconds (3600 was way too high!)
+  // Wh * 3600 = watt seconds (3240,000)  10%=324,000  I'm missing something here
+  nWattsPerBar = nWhTotal * nBarPercent * 9; // adjusted to match somewhat
 
   if(binPayload.b.OnUPS)
     nWattsAccum = nWattsPerBar; // will be decrementing
@@ -694,7 +694,7 @@ void calcPercent()
 
   if (nBarPercent)
   {
-    int percDiff = nWattsAccum * nBarPercent / nWattsPerBar;
+    int percDiff = min(nWattsAccum * nBarPercent / nWattsPerBar, (uint32_t)nBarPercent);
 
     binPayload.battPercent = nLevelPercent + percDiff;
   }
@@ -774,7 +774,10 @@ bool decodeSegments(upsData& udata)
     udata.WattsOut = (wOut[0] * 1000) + (wOut[1] * 100) + (wOut[2] * 10) + wOut[3];
 
   if(voltsIn <= 125) // change if 240V
-    udata.VoltsIn = voltsIn;
+  {
+    if(voltsIn == 0 && udata.b.OnAC); // another glitch
+    else udata.VoltsIn = voltsIn;
+  }
   if(voltsOut && voltsOut <= 125) // should never be 0
     udata.VoltsOut = voltsOut;
 
@@ -791,22 +794,25 @@ bool decodeSegments(upsData& udata)
   switch(udata.b.battDisplay)
   {
     case 0: udata.b.battLevel = 0; break; // <= 4%
-    case 1: udata.b.battLevel = 2; break; // blinking = 5-9%  solid = 10-29%
-    case 2: udata.b.battLevel = 3; break; // 30-49%
-    case 3: udata.b.battLevel = 4; break; // 50-69%
-    case 4: udata.b.battLevel = 5; break; // 70-89%
-    case 5: udata.b.battLevel = 7; break; // blinking = 90-94%  solid = 95-100%
+    case 1: udata.b.battLevel = 2; break; // blinking = 5-9%  solid = 10-19%
+    case 2: udata.b.battLevel = 3; break; // 30-39%
+    case 3: udata.b.battLevel = 4; break; // 40-59%
+    case 4: udata.b.battLevel = 5; break; // 60-79%
+    case 5: udata.b.battLevel = 7; break; // blinking = 80-89%  solid = 90-100%
   }
 
   // alternating display 1 (sometimes skips, probably not timed with output)
   if(udata.b.battDisplay == 0 && (lastBattDisp[0] == 1 || lastBattDisp[1] == 1 || lastBattDisp[2] == 1 || lastBattDisp[3] == 1))
       udata.b.battLevel = 1;
-  if(udata.b.battDisplay == 1 && (lastBattDisp[0] == 0 || lastBattDisp[1] == 0 || lastBattDisp[2] == 0 || lastBattDisp[3] == 0))
+  else if(udata.b.battDisplay == 1 && (lastBattDisp[0] == 0 || lastBattDisp[1] == 0 || lastBattDisp[2] == 0 || lastBattDisp[3] == 0))
       udata.b.battLevel = 1;
+  // fix odd ...4 4 4 5 4... (this may occur on other levels)
+  else if(udata.b.battDisplay == 5 && lastBattDisp[0] == 4 && lastBattDisp[1] == 4 && lastBattDisp[2] == 4 && lastBattDisp[3] == 4)
+      udata.b.battLevel = 5;
   // alternating display 5
-  if(udata.b.battDisplay == 5 && (lastBattDisp[0] == 4 || lastBattDisp[1] == 4 || lastBattDisp[2] == 4 || lastBattDisp[3] == 4))
+  else if(udata.b.battDisplay == 5 && (lastBattDisp[0] == 4 || lastBattDisp[1] == 4 || lastBattDisp[2] == 4 || lastBattDisp[3] == 4))
       udata.b.battLevel = 6;
-  if(udata.b.battDisplay == 4 && (lastBattDisp[0] == 5 || lastBattDisp[1] == 5 || lastBattDisp[2] == 5 || lastBattDisp[3] == 5))
+  else if(udata.b.battDisplay == 4 && (lastBattDisp[0] == 5 || lastBattDisp[1] == 5 || lastBattDisp[2] == 5 || lastBattDisp[3] == 5))
       udata.b.battLevel = 6;
 
   memcpy(lastBattDisp, lastBattDisp + 1, sizeof(lastBattDisp) - 1); // record enough history to detect the skip
