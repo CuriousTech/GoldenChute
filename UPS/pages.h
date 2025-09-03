@@ -88,10 +88,11 @@ function draw(){
   graph = $('#chart')
   c=graph[0].getContext('2d')
 
-  c.fillStyle=c.strokeStyle='black'
+  c.fillStyle='black'
   yPad=3
   c.lineWidth=2
-  c.clearRect(0, 0, graph.width(), graph.height())
+  c.fillRect(0, 0, graph.width(), graph.height())
+  c.fillStyle=c.strokeStyle='white'
 
   if(+upsState.error)
   {
@@ -115,32 +116,32 @@ function draw(){
   c.textBaseline="middle"
 
   c.font='10pt sans-serif'
-  c.fillText("Input", 28, 10)
-  c.fillText(upsState.battPercent+'%', 130, 10)
-  c.fillText("Output", 200, 10)
-
-  c.fillStyle='red'
+  c.fillStyle='rgb(255,50,50)'
   if(+upsState.UPS)
-    c.fillText("UPS", 234, 10)
+    c.fillText("UPS", 260, 10)
   if(+upsState.AC)
-    c.fillText("AC", 60, 10)
+    c.fillText("AC", 80, 10)
 
-  c.fillStyle=c.strokeStyle='black'
+  c.fillStyle='rgb(210,255,255)'
+  c.fillText("Input", 48, 10)
+  c.fillText(upsState.battPercent+'%', 148, 10)
+  c.fillText("Output", 220, 10)
+
   c.font='italic 20pt sans-serif'
   if(upsState.voltsIn)
-    c.fillText(upsState.voltsIn+'v', 64, 38)
-  c.fillText(upsState.voltsOut+'v', 220, 38)
-  c.fillText(upsState.wattsIn+'w', 64, 76)
-  c.fillText(upsState.wattsOut+'w', 220, 76)
+    c.fillText(upsState.voltsIn+'v', 84, 40)
+  c.fillText(upsState.voltsOut+'v', 240, 40)
+  c.fillText(upsState.wattsIn+'w', 84, 76)
+  c.fillText(upsState.wattsOut+'w', 240, 76)
 
   c.fillStyle=c.strokeStyle='rgb(0,120,255)'
   y = 76
   for(i = 0; i < 5; i++)
   {
     if(i >= upsState.BATT)
-      c.strokeRect(94+1, y+1, 40-2, 10-2)
+      c.strokeRect(110+1, y+1, 40-2, 10-2)
     else
-      c.fillRect(94, y, 40, 10)
+      c.fillRect(110, y, 40, 10)
     y -= 12
   }
 }
@@ -156,14 +157,14 @@ openSocket()
 
 <tr><td>
   <input type="button" value="SHUTDOWN" onClick="{shutdown()}"> <input type="button" value="HIBERNATE" onClick="{hibernate()}"> 
-  <input type="button" value="FIX" onClick="{setVar('restart',0)}"></td></tr>
+  <input type="button" value="RST DSP" onClick="{setVar('restart',0)}"></td></tr>
 <tr><td><input id="myKey" name="key" type=text size=40 placeholder="password" style="width: 100px" onChange="{localStorage.setItem('key', key = document.all.myKey.value)}"></td></tr>
 </table>
 
 <table width=278>
 <tr><td>
 <div id="wrapper">
-<canvas id="chart" width="250" height="100"></canvas>
+<canvas id="chart" width="270" height="100"></canvas>
 </div>
 </td></tr>
 </table></body>
