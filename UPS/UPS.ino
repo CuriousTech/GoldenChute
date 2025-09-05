@@ -69,7 +69,6 @@ Prefs prefs;
 
 bool bConfigDone; // EspTouch config
 bool bStarted; // WiFi started
-uint32_t connectTimer;
 bool bGMFormatSerial;
 uint32_t spiMS;
 bool bNeedRestart; // display may need fix after switching from battery to AC
@@ -384,7 +383,6 @@ void setup()
     Serial.println("No SSID. Waiting for EspTouch");
     WiFi.beginSmartConfig();
   }
-  connectTimer = time(nullptr);
 
   // attach AsyncWebSocket
   ws.onEvent(onWsEvent);
@@ -463,6 +461,7 @@ void loop()
       sentMS = millis();
       calcPercent();
       checksumData(); // prepare it for transmit
+
       ws.textAll( statusJson() ); // send to web page or other websocket clients
 
       if(binClientCnt) // send to Windows Goldenchute client
@@ -561,7 +560,6 @@ void loop()
       {
         Serial.println("SmartConfig set");
         bConfigDone = true;
-        connectTimer = time(nullptr);
         WiFi.SSID().toCharArray(prefs.szSSID, sizeof(prefs.szSSID)); // Get the SSID from SmartConfig or last used
         WiFi.psk().toCharArray(prefs.szSSIDPassword, sizeof(prefs.szSSIDPassword) );
         prefs.update();
@@ -574,19 +572,20 @@ void loop()
       {
         if(!bStarted)
         {
-          Serial.println("WiFi Connected");
+          Serial.println("WiFi Connected"); // first connect setup
           WiFi.mode(WIFI_STA);
           MDNS.begin( prefs.szName );
           MDNS.addService("iot", "tcp", 80);
           bStarted = true;
           configTime(0, 0, "pool.ntp.org");
         }
-        connectTimer = time(nullptr);
       }
-      else if(time(nullptr) - connectTimer > 10) // failed to connect or connection lost
+      else if(WiFi.status() == WL_CONNECTION_LOST) // connection lost
+      {
+      }
+      else if(WiFi.status() == WL_CONNECT_FAILED) // failed to connect
       {
         Serial.println("Connect failed. Starting SmartConfig");
-        connectTimer = time(nullptr);
         WiFi.mode(WIFI_AP_STA);
         WiFi.beginSmartConfig();
         bConfigDone = false;
@@ -597,8 +596,8 @@ void loop()
     if(hour_save != Hour())
     {
       hour_save = Hour();
-//    if(hour_save == 2) // todo: update time daily or nah?
-//      configTime(0, 0, "pool.ntp.org");
+      if(hour_save == 2) // todo: update time daily or nah?
+        configTime(0, 0, "pool.ntp.org");
 
       prefs.update(); // check for any prefs changes and update
     }
@@ -816,9 +815,10 @@ bool decodeSegments(upsData& udata)
   else if(udata.b.battDisplay == 4 && (lastBattDisp[0] == 5 || lastBattDisp[1] == 5 || lastBattDisp[2] == 5 || lastBattDisp[3] == 5))
       udata.b.battLevel = 6;
 
-  memcpy(lastBattDisp, lastBattDisp + 1, sizeof(lastBattDisp) - 1); // record enough history to detect the skip
-  lastBattDisp[3] = udata.b.battDisplay;
-
+  static uint8_t idx = 0;
+  lastBattDisp[idx] = udata.b.battDisplay;
+  idx++;
+  idx &= 3;
   return true;
 }
 
