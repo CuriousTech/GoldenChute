@@ -26,7 +26,7 @@ SOFTWARE.
 // Build with Arduino IDE 1.8.19, ESP32 2.0.14 or 3.2.0
 // CPU Speed: Anything with WiFi
 // Partition: Default 4MB with anything
-// USB CDC On Boot: Enabled for serial output over USB
+// USB CDC On Boot: Enabled - for serial output over USB
 
 #include <ESPAsyncWebServer.h> // https://github.com/ESP32Async/ESPAsyncWebServer (3.7.2) and AsyncTCP (3.4.4)
 #include <time.h>
@@ -44,6 +44,7 @@ SOFTWARE.
 #define SSR     3
 
 #define UPS_MODEL 0 // 0 = 1000VA, 1 = 1500VA, 2 = 2000VA
+#define TZ  "EST5EDT,M3.2.0,M11.1.0"  // https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
 
 bool bKeyGood;
 IPAddress lastIP;
@@ -61,6 +62,7 @@ AsyncWebSocket wsb("/bin"); // binary websocket for Windows app
 
 uint32_t WsClientID;
 uint32_t binClientCnt;
+tm lTime;
 
 void jsonCallback(int16_t iName, int iValue, char *psValue);
 JsonParse jsonParse(jsonCallback);
@@ -78,6 +80,10 @@ uint8_t nLevelPercent;
 uint8_t nBarPercent;
 uint32_t nWattsAccum;
 uint32_t nWattsPerBar;
+
+uint32_t nWattHrArr[24];
+uint32_t nWattsAccumHr;
+uint16_t nWhCnt;
 
 struct flagBits{
   uint16_t OnUPS : 1;
@@ -126,10 +132,12 @@ String dataJson()
   jsonString js("state");
 
   js.Var("t", (uint32_t)time(nullptr));
-  int sig = WiFi.RSSI();
-  js.Var("rssi", sig);
+  js.Var("rssi", WiFi.RSSI() );
   js.Var("connected", binClientCnt);
   js.Var("nodata", binPayload.b.noData);
+  js.Var("ppkwh", prefs.ppkw);
+  js.Var("wh", nWattsAccumHr / 3621); // usage this hour
+  js.Array("wattArr", nWattHrArr, 24);
   return js.Close();
 }
 
@@ -137,8 +145,7 @@ String statusJson()
 {
   jsonString js("data");
   js.Var("t", (uint32_t)time(nullptr));
-  int sig = WiFi.RSSI();
-  js.Var("rssi", sig);
+  js.Var("rssi", WiFi.RSSI());
   js.Var("connected", binClientCnt);
   js.Var("AC", binPayload.b.OnAC);
   js.Var("UPS", binPayload.b.OnUPS);
@@ -156,10 +163,10 @@ String statusJson()
 
 const char *jsonList1[] = {
   "key",
-  "tzo",
   "hibernate",
   "shutdown",
   "restart",
+  "ppkwh",
   NULL
 };
 
@@ -205,11 +212,7 @@ void jsonCallback(int16_t iName, int iValue, char *psValue)
       if (!strcmp(psValue, prefs.szPassword)) // first item must be key
         bKeyGood = true;
       break;
-    case 1: // tzo
-      if(!prefs.tzo)
-        prefs.tzo = iValue; // trick to get TZ
-      break;
-    case 2: // hibernate
+    case 1: // hibernate
       {
         static char data[] = "HIBR";
         wsb.binaryAll(data, 4);
@@ -217,7 +220,7 @@ void jsonCallback(int16_t iName, int iValue, char *psValue)
         Serial.write(data2, 5);
       }
       break;
-    case 3: // shutdown
+    case 2: // shutdown
       {
         static char data[] = "SHDN";
         wsb.binaryAll(data, 4);
@@ -225,20 +228,13 @@ void jsonCallback(int16_t iName, int iValue, char *psValue)
         Serial.write(data2, 5);
       }
       break;
-    case 4: // restart
+    case 3: // restart
       bNeedRestart = true;
       break;
+    case 4: // ppkwh
+      prefs.ppkw = iValue;
+      break;
   }
-}
-
-uint8_t Hour()
-{
-  struct tm timeinfo;
-
-  if(!getLocalTime(&timeinfo))
-    return 0;
-
-  return timeinfo.tm_hour;
 }
 
 void sendState()
@@ -302,16 +298,21 @@ void onBinEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEvent
     case WS_EVT_DATA:  //data packet
       AwsFrameInfo * info = (AwsFrameInfo*)arg;
       if(info->final && info->index == 0 && info->len == len){
-        //the whole message is in a single frame and we got all of it's data
-        processBin(data, len);
+        switch(data[0])
+        {
+          case 'W': // send wh array
+            {
+              uint32_t binData[26];
+              binData[0] = 0x00DEBCAA;
+              binData[1] = nWattsAccumHr / 3621; // current this hour
+              memcpy( (uint8_t*)&binData[2], &nWattHrArr, sizeof(nWattHrArr));
+              client->binary((uint8_t*)&binData, sizeof(binData));
+            }
+            break;
+        }
       }
       break;
   }
-}
-
-void processBin(uint8_t *pData, uint16_t len)
-{
-  // for future commands
 }
 
 void alert(String txt)
@@ -497,6 +498,9 @@ void loop()
   if(millis() - lastMS >= 1000) // only do stuff once per second
   {
     lastMS = millis();
+
+    getLocalTime(&lTime); // used globally
+    
     static uint8_t nSSRsecs = 1;
     static bool bRestartingDisplay = false;
 
@@ -548,7 +552,7 @@ void loop()
     }
 
     // send some basic info to web page (keepalive) if no other data sent recently
-    if(millis() - sentMS > 1000)
+    if(millis() - sentMS > 1000 || lTime.tm_sec == 0)
     {
       sendState();
     }
@@ -578,6 +582,8 @@ void loop()
           MDNS.addService("iot", "tcp", 80);
           bStarted = true;
           configTime(0, 0, "pool.ntp.org");
+          setenv("TZ", TZ, 1);
+          tzset();
         }
       }
       else if(WiFi.status() == WL_CONNECTION_LOST) // connection lost
@@ -593,11 +599,27 @@ void loop()
       }
     }
 
-    if(hour_save != Hour())
+    if(hour_save != lTime.tm_hour)
     {
-      hour_save = Hour();
+      hour_save = lTime.tm_hour;
+
+      if(nWhCnt > 2)
+      {
+        uint16_t nDiv = 3621;
+        if(nWhCnt > 3618) nDiv = nWhCnt; // Usually 3621-3622, but starting mid-hour is lower
+        int8_t h = lTime.tm_hour - 1; // last hour
+        if(h < 0) h = 23;
+        nWattHrArr[h] = nWattsAccumHr / nDiv;
+        nWattsAccumHr = 0;
+        nWhCnt = 0;
+      }
+
       if(hour_save == 2) // todo: update time daily or nah?
+      {
         configTime(0, 0, "pool.ntp.org");
+        setenv("TZ", TZ, 1);
+        tzset();
+      }
 
       prefs.update(); // check for any prefs changes and update
     }
@@ -688,6 +710,10 @@ void calcPercent()
       nWattsAccum += binPayload.WattsIn - binPayload.WattsOut - 1; // charge watts - 1W running power
       cnt  = 0;
     }
+  
+    // Usage stats
+    nWattsAccumHr += binPayload.WattsIn;
+    nWhCnt++;
   }
 
   lastOnUPS = binPayload.b.OnUPS;
@@ -716,6 +742,15 @@ void checkSerial()
       if( buffer[0] == 0xAA && buffer[1] == 'G' && buffer[2] == 'M' && buffer[3] == 0)
       {
         bGMFormatSerial = true;
+      }
+      else if( buffer[0] == 0xAA && buffer[1] == 'W' && buffer[2] == 'H' && buffer[3] == 0)
+      {
+        nWattHrArr[lTime.tm_hour] = nWattsAccumHr / 3621; // current this hour
+        uint32_t binData[26];
+        binData[0] = 0x00DEBCAA;
+        binData[1] = nWattsAccumHr / 3621; // current this hour
+        memcpy( (uint8_t*)&binData[2], &nWattHrArr, sizeof(nWattHrArr));
+        Serial.write((uint8_t*)&binData, sizeof(binData));
       }
       else
       {
