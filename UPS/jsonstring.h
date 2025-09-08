@@ -137,7 +137,7 @@ public:
     m_cnt++;
   }
 
-  void Array(const char *key, int32_t iVal[], int n)
+  void Array(const char *key, uint32_t iVal[], int n)
   {
     if(m_cnt) s += ",";
     s += "\"";
