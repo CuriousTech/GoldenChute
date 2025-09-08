@@ -36,15 +36,15 @@ errorTxt=[
   "Overload", // 5
   "Communication",
   "Fan",
-  "High Output Voltage", // 8
-  "NA"
+  "High Output Voltage", // differing manuals
+  "High Output Voltage" // 9 " "
 ]
 
 function openSocket(){
   ws=new WebSocket("ws://"+window.location.host+"/ws")
 //  ws=new WebSocket("ws://192.168.31.230/ws")
   date = new Date()
-  ws.onopen=function(evt){setVar('tzo', date.getTimezoneOffset())}
+  ws.onopen=function(evt){}
   ws.onclose=function(evt){alert("Connection closed");}
   ws.onmessage=function(evt){
   console.log(evt.data)
@@ -55,6 +55,8 @@ function openSocket(){
       dt=new Date(d.t*1000)
       a.topbar.innerHTML=((+d.connected)?'PC Connected ':'PC Disonnected')+'&nbsp; '+dt.toLocaleTimeString()+' &nbsp;'+d.rssi+'dB'
       noData=+d.nodata
+      a.ppkwh.value=ppkwh=+d.ppkwh/100
+      drawstuff()
       break
     case 'alert':
       alert(d.text)
@@ -145,7 +147,127 @@ function draw(){
     y -= 12
   }
 }
+
+function drawstuff(){
+try {
+  graph = $('#bars')
+  var c=document.getElementById('bars')
+  rect=c.getBoundingClientRect()
+  canvasX=rect.x
+  canvasY=rect.y
+
+  tipCanvas=document.getElementById("tip")
+  tipCtx=tipCanvas.getContext("2d")
+  tipDiv=document.getElementById("popup")
+
+  ctx=c.getContext("2d")
+  ctx.fillStyle="#000"
+  ctx.fillRect(0,0,c.width,c.height)
+  ctx.fillStyle="#FFF"
+  ctx.font="8px sans-serif"
+
+  dots=[]
+  date = new Date()
+  ctx.lineWidth=9
+  draw_scale(d.wattArr,c.width,c.height,3,date.getHours(), +d.wh)
+  // request mousemove events
+  graph.mousemove(function(e){handleMouseMove(e);})
+  // show tooltip when mouse hovers over dot
+  function handleMouseMove(e){
+    rect=c.getBoundingClientRect()
+    mouseX=e.clientX-rect.x
+    mouseY=e.clientY-rect.y
+    var hit = false
+    for(i=0;i<dots.length;i++){
+      dot = dots[i]
+      if(mouseX>=dot.x && mouseX<=dot.x2 && mouseY>=dot.y && mouseY<=dot.y2){
+        tipCtx.clearRect(0,0,tipCanvas.width,tipCanvas.height)
+        tipCtx.fillStyle="#FFA"
+        tipCtx.lineWidth = 2
+        tipCtx.fillStyle = "#000000"
+        tipCtx.strokeStyle = '#333'
+        tipCtx.font = 'bold italic 10pt sans-serif'
+        tipCtx.textAlign = "left"
+        if(+dot.tip>1000)
+         txt=(dot.tip/1000).toFixed(1)+' KWh'
+        else
+         txt=dot.tip+' Wh'
+        tipCtx.fillText(txt, 4, 12)
+        tipCtx.fillText('$'+(dot.tip*(0.15/1000)).toFixed(3),4,27)
+        hit=true
+        popup=document.getElementById("popup")
+        popup.style.top=(dot.y+rect.y+window.pageYOffset+20)+"px"
+        popup.style.left=(dot.x+rect.x)+"px"
+      }
+    }
+    if(!hit) popup.style.left="-200px"
+  }
+
+}catch(err){}
+}
+
+function draw_scale(arr,w,h,o,hi,cur)
+{
+  max=0
+  tot=0
+  for(i=0;i<arr.length;i++)
+  {
+    if(arr[i]>max) max=arr[i]
+    tot+=arr[i]
+  }
+  if(cur>max) max=cur
+  ctx.textAlign="center"
+  w -= 40
+  for(i=0;i<arr.length;i++)
+  {
+    x=i*(w/arr.length)+8
+    ctx.strokeStyle="#555"
+    bh=arr[i]*(h-18)/max
+    y=(o+h-18)-bh
+    ctx.beginPath()
+    ctx.moveTo(x,o+h-18)
+    ctx.lineTo(x,y)
+    ctx.stroke()
+    if(i==hi){
+      ctx.strokeStyle="#55F"
+      bh=cur*(h-18)/max
+      y=(o+h-18)-bh
+      ctx.beginPath()
+      ctx.moveTo(x,o+h-18)
+      ctx.lineTo(x,y)
+      ctx.stroke()
+    }
+    ctx.strokeStyle="#FFF"
+    ctx.fillText(i,x,o+h-7)
+    if(arr[i])
+      dots.push({
+      x: x-(ctx.lineWidth/2),
+      y: y,
+      y2: y+bh,
+      x2: x+ctx.lineWidth,
+      tip: arr[i],
+    })
+  }
+  ctx.textAlign="right"
+  if(tot>1000)
+   txt=(tot/1000).toFixed(1)+' KWh'
+  else
+   txt=tot.toFixed(1)+' Wh'
+  ctx.fillText(max+' MAX',w+40-1,8)
+  ctx.fillText(txt,w+40-1,20)
+  ctx.fillText('$'+(tot*ppkwh/1000).toFixed(3) ,w+40-1,29)
+}
 </script>
+<style type="text/css">
+#popup {
+  position: absolute;
+  top: 150px;
+  left: -150px;
+  z-index: 10;
+  border-style: solid;
+  border-width: 1px;
+}
+</style>
 </head>
 <body bgcolor="silver" onload="{
 key=localStorage.getItem('key')
@@ -158,16 +280,24 @@ openSocket()
 <tr><td>
   <input type="button" value="SHUTDOWN" onClick="{shutdown()}"> <input type="button" value="HIBERNATE" onClick="{hibernate()}"> 
   <input type="button" value="RST DSP" onClick="{setVar('restart',0)}"></td></tr>
-<tr><td><input id="myKey" name="key" type=text size=40 placeholder="password" style="width: 100px" onChange="{localStorage.setItem('key', key = document.all.myKey.value)}"></td></tr>
+<tr><td>PPKWH <input id="ppkwh" type=text size=4 onChange="{setVar('ppkwh',(ppkwh=+this.value*100).toFixed() )}"> &nbsp; 
+<input id="myKey" name="key" type=text size=40 placeholder="password" style="width: 100px" onChange="{localStorage.setItem('key', key = document.all.myKey.value)}"></td></tr>
 </table>
 
 <table width=278>
-<tr><td>
+<tr align="center"><td>
 <div id="wrapper">
 <canvas id="chart" width="270" height="100"></canvas>
 </div>
 </td></tr>
-</table></body>
+<tr align="center"><td>
+<div id="wrapper2">
+<canvas id="bars" width="270" height="120"></canvas>
+<div id="popup"><canvas id="tip" width=60 height=27></canvas></div>
+</div>
+</td></tr>
+</table>
+</body>
 </html>
 )rawliteral";
 
