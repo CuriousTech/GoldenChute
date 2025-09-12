@@ -56,6 +56,8 @@ function openSocket(){
       a.topbar.innerHTML=((+d.connected)?'PC Connected ':'PC Disonnected')+'&nbsp; '+dt.toLocaleTimeString()+' &nbsp;'+d.rssi+'dB'
       noData=+d.nodata
       a.ppkwh.value=ppkwh=+d.ppkwh/100
+      wmin=d.wmin
+      wmax=d.wmax
       drawstuff()
       break
     case 'alert':
@@ -117,17 +119,27 @@ function draw(){
   c.textAlign="right"
   c.textBaseline="middle"
 
-  c.font='10pt sans-serif'
-  c.fillStyle='rgb(255,50,50)'
+  c.font='bold 10pt sans-serif'
+  c.fillStyle='rgb(255,30,30)'
   if(+upsState.UPS)
     c.fillText("UPS", 260, 10)
   if(+upsState.AC)
     c.fillText("AC", 80, 10)
 
-  c.fillStyle='rgb(210,255,255)'
+  c.font='10pt sans-serif'
+  c.strokeStyle=c.fillStyle='rgb(210,255,255)'
   c.fillText("Input", 48, 10)
   c.fillText(upsState.battPercent+'%', 148, 10)
   c.fillText("Output", 220, 10)
+
+  c.beginPath()
+  c.moveTo(18,20)
+  c.lineTo(90,20)
+  c.stroke()
+  c.beginPath()
+  c.moveTo(178,20)
+  c.lineTo(246,20)
+  c.stroke()
 
   c.font='italic 20pt sans-serif'
   if(upsState.voltsIn)
@@ -183,17 +195,21 @@ try {
       if(mouseX>=dot.x && mouseX<=dot.x2 && mouseY>=dot.y && mouseY<=dot.y2){
         tipCtx.clearRect(0,0,tipCanvas.width,tipCanvas.height)
         tipCtx.fillStyle="#FFA"
+        tipCtx.textAlign="right"
         tipCtx.lineWidth = 2
         tipCtx.fillStyle = "#000000"
         tipCtx.strokeStyle = '#333'
-        tipCtx.font = 'bold italic 10pt sans-serif'
-        tipCtx.textAlign = "left"
+        tipCtx.font = 'bold 9pt sans-serif'
         if(+dot.tip>1000)
          txt=(dot.tip/1000).toFixed(1)+' KWh'
         else
          txt=dot.tip+' Wh'
-        tipCtx.fillText(txt, 4, 12)
-        tipCtx.fillText('$'+(dot.tip*(0.15/1000)).toFixed(3),4,27)
+        console.log('here')
+        x=tipCanvas.width-3
+        tipCtx.fillText(txt,x, 12)
+        tipCtx.fillText('$'+(dot.tip*(0.15/1000)).toFixed(3),x,25)
+        tipCtx.fillText(dot.tip2+String.fromCharCode(10514),x,38)
+        tipCtx.fillText(dot.tip3+String.fromCharCode(10515),x,52)
         hit=true
         popup=document.getElementById("popup")
         popup.style.top=(dot.y+rect.y+window.pageYOffset+20)+"px"
@@ -209,10 +225,12 @@ try {
 function draw_scale(arr,w,h,o,hi,cur)
 {
   max=0
+  min=1000
   tot=0
   for(i=0;i<arr.length;i++)
   {
     if(arr[i]>max) max=arr[i]
+    if(arr[i]&&arr[i]<min) min=arr[i]
     tot+=arr[i]
   }
   if(cur>max) max=cur
@@ -229,7 +247,7 @@ function draw_scale(arr,w,h,o,hi,cur)
     ctx.lineTo(x,y)
     ctx.stroke()
     if(i==hi){
-      ctx.strokeStyle="#55F"
+      ctx.strokeStyle='rgb(0,120,255)'
       bh=cur*(h-18)/max
       y=(o+h-18)-bh
       ctx.beginPath()
@@ -246,6 +264,8 @@ function draw_scale(arr,w,h,o,hi,cur)
       y2: y+bh,
       x2: x+ctx.lineWidth,
       tip: arr[i],
+      tip2: wmax[i],
+      tip3: wmin[i],
     })
   }
   ctx.textAlign="right"
@@ -253,9 +273,10 @@ function draw_scale(arr,w,h,o,hi,cur)
    txt=(tot/1000).toFixed(1)+' KWh'
   else
    txt=tot.toFixed(1)+' Wh'
-  ctx.fillText(max+' MAX',w+40-1,8)
-  ctx.fillText(txt,w+40-1,20)
-  ctx.fillText('$'+(tot*ppkwh/1000).toFixed(3) ,w+40-1,29)
+  ctx.fillText(txt,w+40-1,8)
+  ctx.fillText('$'+(tot*ppkwh/1000).toFixed(3) ,w+40-1,18)
+  ctx.fillText(max+String.fromCharCode(10514),w+40-1,33)
+  ctx.fillText(min+String.fromCharCode(10515),w+40-1,43)
 }
 </script>
 <style type="text/css">
@@ -280,22 +301,20 @@ openSocket()
 <tr><td>
   <input type="button" value="SHUTDOWN" onClick="{shutdown()}"> <input type="button" value="HIBERNATE" onClick="{hibernate()}"> 
   <input type="button" value="RST DSP" onClick="{setVar('restart',0)}"></td></tr>
-<tr><td>PPKWH <input id="ppkwh" type=text size=4 onChange="{setVar('ppkwh',(ppkwh=+this.value*100).toFixed() )}"> &nbsp; 
-<input id="myKey" name="key" type=text size=40 placeholder="password" style="width: 100px" onChange="{localStorage.setItem('key', key = document.all.myKey.value)}"></td></tr>
 </table>
 
-<table width=278>
+<table width=278 >
 <tr align="center"><td>
 <div id="wrapper">
 <canvas id="chart" width="270" height="100"></canvas>
-</div>
-</td></tr>
-<tr align="center"><td>
-<div id="wrapper2">
 <canvas id="bars" width="270" height="120"></canvas>
-<div id="popup"><canvas id="tip" width=60 height=27></canvas></div>
+<div id="popup"><canvas id="tip" width=50 height=54></canvas></div>
 </div>
 </td></tr>
+</table>
+<table width=278>
+<tr><td>PPKWH <input id="ppkwh" type=text size=4 onChange="{setVar('ppkwh',(ppkwh=+this.value*100).toFixed() )}"> &nbsp; 
+<input id="myKey" name="key" type=text size=40 placeholder="password" style="width: 100px" onChange="{localStorage.setItem('key', key = document.all.myKey.value)}"></td></tr>
 </table>
 </body>
 </html>
