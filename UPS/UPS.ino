@@ -43,7 +43,7 @@ SOFTWARE.
 #define LED     8
 #define SSR     3
 
-#define UPS_MODEL 0 // 0 = 1000VA, 1 = 1500VA, 2 = 2000VA
+#define UPS_MODEL 0 // 0 = 1000VA 25.6V9Ah=230.4Wh, 1 = 1500VA 51.2V5.8Ah=296.96Wh, 2 = 2000VA 51.2V9Ah=460.8Wh
 #define TZ  "EST5EDT,M3.2.0,M11.1.0"  // https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
 
 bool bKeyGood;
@@ -84,13 +84,15 @@ uint32_t nWattsPerBar;
 uint32_t nWattHrArr[24];
 uint32_t nWattsAccumHr;
 uint16_t nWhCnt;
+uint16_t nWattMin[24], nWattMax[24];
 
 struct flagBits{
   uint16_t OnUPS : 1;
   uint16_t OnAC : 1;
   uint16_t error : 1; // WattsIn will be error #
-  uint16_t model : 3; // 0 = 1000VA, 1 = 1500VA, 2 = 2000VA 
-  uint16_t reserved1 : 3;
+  uint16_t model : 3; // 0 = 1000VA 25.6V9Ah=230.4Wh, 1 = 1500VA 51.2V5.8Ah=296.96Wh, 2 = 2000VA 51.2V9Ah=460.8Wh
+  uint16_t charging : 1;
+  uint16_t reserved1 : 2;
   uint16_t noData : 1; // display timeout indicator
   uint16_t battDisplay : 3; // 0-5
   uint16_t battLevel : 3; // 0-7 (will be phased out)
@@ -127,6 +129,10 @@ volatile holtek hx;
 volatile uint8_t ups_nibble[32]; // valid is 0-29, but the addr could hit 31, so be safe
 volatile bool bReady;
 
+bool decodeSegments(upsData& udata);
+void calcPercent(void);
+void checkSerial(void);
+
 String dataJson()
 {
   jsonString js("state");
@@ -138,6 +144,8 @@ String dataJson()
   js.Var("ppkwh", prefs.ppkw);
   js.Var("wh", nWattsAccumHr / 3621); // usage this hour
   js.Array("wattArr", nWattHrArr, 24);
+  js.Array("wmin", nWattMin, 24);
+  js.Array("wmax", nWattMax, 24);
   return js.Close();
 }
 
@@ -461,11 +469,12 @@ void loop()
     {
       sentMS = millis();
       calcPercent();
+      calcMinMax();
       checksumData(); // prepare it for transmit
 
       ws.textAll( statusJson() ); // send to web page or other websocket clients
 
-      if(binClientCnt) // send to Windows Goldenchute client
+      if(binClientCnt) // send to Windows Goldenchute client(s)
       {
         wsb.binaryAll((uint8_t*)&binPayload, sizeof(binPayload));
       }
@@ -614,6 +623,10 @@ void loop()
         nWhCnt = 0;
       }
 
+      // reset min/max for the hour
+      nWattMin[hour_save] = 0;
+      nWattMax[hour_save] = 0;
+
       if(hour_save == 2) // todo: update time daily or nah?
       {
         configTime(0, 0, "pool.ntp.org");
@@ -630,6 +643,20 @@ void loop()
   }
 
   checkSerial();
+}
+
+// set mix/max every reading
+void calcMinMax()
+{
+  if(lTime.tm_year < 124)
+    return;
+
+ if(nWattMin[lTime.tm_hour] == 0)
+  nWattMin[lTime.tm_hour] = 900;
+ if(nWattMin[lTime.tm_hour] > binPayload.WattsIn)
+   nWattMin[lTime.tm_hour] = binPayload.WattsIn;
+ if(nWattMax[lTime.tm_hour] < binPayload.WattsIn)
+   nWattMax[lTime.tm_hour] = binPayload.WattsIn;
 }
 
 // Called when the battery level changes (or startup)
@@ -655,15 +682,15 @@ void levelChange()
     nBarPercent = battLevels[binPayload.b.battLevel] - nLevelPercent;
   }
 
-  uint16_t nWhTotal = 900; // 90% efficiency
+  uint16_t nWhTotal = 225; // 1000VA, close to 98% of 25.6V 9Ah
   switch(binPayload.b.model)
   {
-    case 1: nWhTotal = 1350; break; // 1500
-    case 2: nWhTotal = 1800; break; // 2000
+    case 1: nWhTotal = 291; break; // 1500VA
+    case 2: nWhTotal = 451; break; // 2000VA
   }
 
-  // Wh * 3600 = watt seconds (3240,000)  10%=324,000  I'm missing something here
-  nWattsPerBar = nWhTotal * nBarPercent * 9; // adjusted to match somewhat
+  // Wh * 3600 = watt seconds (810,000)  10%=81,000
+  nWattsPerBar = nWhTotal * 3600 / nBarPercent;
 
   if(binPayload.b.OnUPS)
     nWattsAccum = nWattsPerBar; // will be decrementing
@@ -691,7 +718,7 @@ void calcPercent()
   {
     cnt  = 0;
     if(nWattsAccum > binPayload.WattsIn)
-      nWattsAccum -= binPayload.WattsIn; // discharge watts (battery is likely WattsIn)
+      nWattsAccum -= binPayload.WattsIn; // discharge watts (battery is likely WattsIn, WattsOut is after efficiency loss)
   }
   else
   {
@@ -702,11 +729,13 @@ void calcPercent()
       if(cnt > 2)
       {
         binPayload.battPercent = 100;
+        binPayload.b.charging = 0;
         nBarPercent = 0;
       }
     }
     else
     {
+      binPayload.b.charging = 1;
       nWattsAccum += binPayload.WattsIn - binPayload.WattsOut - 1; // charge watts - 1W running power
       cnt  = 0;
     }
@@ -854,6 +883,7 @@ bool decodeSegments(upsData& udata)
   lastBattDisp[idx] = udata.b.battDisplay;
   idx++;
   idx &= 3;
+  
   return true;
 }
 
