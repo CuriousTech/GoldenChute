@@ -225,7 +225,7 @@ try {
 function draw_scale(arr,w,h,o,hi,cur)
 {
   max=0
-  min=1000
+  min=2000
   tot=0
   for(i=0;i<arr.length;i++)
   {
@@ -235,7 +235,7 @@ function draw_scale(arr,w,h,o,hi,cur)
   }
   if(cur>max) max=cur
   ctx.textAlign="center"
-  w -= 40
+  w -= 5
   for(i=0;i<arr.length;i++)
   {
     x=i*(w/arr.length)+8
@@ -273,10 +273,10 @@ function draw_scale(arr,w,h,o,hi,cur)
    txt=(tot/1000).toFixed(1)+' KWh'
   else
    txt=tot.toFixed(1)+' Wh'
-  ctx.fillText(txt,w+40-1,8)
-  ctx.fillText('$'+(tot*ppkwh/1000).toFixed(3) ,w+40-1,18)
-  ctx.fillText(max+String.fromCharCode(10514),w+40-1,33)
-  ctx.fillText(min+String.fromCharCode(10515),w+40-1,43)
+  ctx.fillText(txt,w+5,8)
+  ctx.fillText('$'+(tot*ppkwh/1000).toFixed(3),w+4,18)
+  ctx.fillText(max+String.fromCharCode(10514),w+4,33)
+  ctx.fillText(min+String.fromCharCode(10515),w+4,43)
 }
 </script>
 <style type="text/css">
