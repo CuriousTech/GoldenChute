@@ -43,7 +43,14 @@ SOFTWARE.
 #define LED     8
 #define SSR     3
 
-#define UPS_MODEL 0 // 0 = 1000VA 25.6V9Ah=230.4Wh, 1 = 1500VA 51.2V5.8Ah=296.96Wh, 2 = 2000VA 51.2V9Ah=460.8Wh
+// Model 0-7
+// 0 = 1000VA/600W 25.6V 6Ah   = 153.6Wh
+// 1 = 1000VA/800W 25.6V 9Ah   = 230.4Wh
+// 2 = 1500VA/1000W 51.2V 5.8Ah= 297Wh
+// 3 = 1500VA/1200W 51.2V 6Ah  = 307Wh (manual is incorrect, so I'm guessing)
+// 4 = 2000VA/1600W 51.2V 9Ah  = 460.8Wh
+#define UPS_MODEL 1
+
 #define TZ  "EST5EDT,M3.2.0,M11.1.0"  // https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
 
 bool bKeyGood;
@@ -90,7 +97,7 @@ struct flagBits{
   uint16_t OnUPS : 1;
   uint16_t OnAC : 1;
   uint16_t error : 1; // WattsIn will be error #
-  uint16_t model : 3; // 0 = 1000VA 25.6V9Ah=230.4Wh, 1 = 1500VA 51.2V5.8Ah=296.96Wh, 2 = 2000VA 51.2V9Ah=460.8Wh
+  uint16_t model : 3; // 0 = 1000VA/600W, 1 = 1000VA/800W, ... see above
   uint16_t charging : 1;
   uint16_t reserved1 : 2;
   uint16_t noData : 1; // display timeout indicator
@@ -104,8 +111,8 @@ struct upsData
   flagBits b;
   uint8_t  VoltsIn;
   uint8_t  VoltsOut;
-  uint16_t WattsIn;
-  uint16_t WattsOut;
+  uint16_t WattsIn; // AC=UPS+outputs, Batt=pre-inverter, error=error #
+  uint16_t WattsOut; // AC=just output, Batt=post-inverter (out-in=efficiency)
   uint8_t  battPercent;
   uint8_t  sum;
 }; // 12 bytes
@@ -682,15 +689,17 @@ void levelChange()
     nBarPercent = battLevels[binPayload.b.battLevel] - nLevelPercent;
   }
 
-  uint16_t nWhTotal = 225; // 1000VA, close to 98% of 25.6V 9Ah
+  uint16_t nWhTotal = 150; // 1000VA/600W, close to 98% of 25.6V 6Ah
   switch(binPayload.b.model)
   {
-    case 1: nWhTotal = 291; break; // 1500VA
-    case 2: nWhTotal = 451; break; // 2000VA
+    case 1: nWhTotal = 224; break; // 1000VA/800W
+    case 2: nWhTotal = 290; break; // 1500VA/1000W
+    case 3: nWhTotal = 320; break; // 1500VA/1200W (guessing)
+    case 4: nWhTotal = 450; break; // 2000VA/1600W
   }
 
   // Wh * 3600 = watt seconds (810,000)  10%=81,000
-  nWattsPerBar = nWhTotal * 3600 / nBarPercent;
+  nWattsPerBar = nWhTotal * 3620 / nBarPercent; // actually 3621-3622 per hour
 
   if(binPayload.b.OnUPS)
     nWattsAccum = nWattsPerBar; // will be decrementing
@@ -718,7 +727,7 @@ void calcPercent()
   {
     cnt  = 0;
     if(nWattsAccum > binPayload.WattsIn)
-      nWattsAccum -= binPayload.WattsIn; // discharge watts (battery is likely WattsIn, WattsOut is after efficiency loss)
+      nWattsAccum -= binPayload.WattsIn; // discharge watts (WattsIn appears to be pre-inverter, WattsOut is post-inverter. in - out = loss)
   }
   else
   {
