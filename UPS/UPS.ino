@@ -28,6 +28,18 @@ SOFTWARE.
 // Partition: Default 4MB with anything
 // USB CDC On Boot: Enabled - for serial output over USB
 
+///////////////////////////////////////////////////
+//  Model      Volts Amps    Wh      ~97% integer
+// 1000VA/600W 25.6V 6Ah   = 153.6Wh  150
+// 1000VA/800W 25.6V 9Ah   = 230.4Wh  224
+// 1500VA/1000W 51.2V 5.8Ah= 297Wh    290
+// 1500VA/1200W 51.2V 6Ah  = 307Wh    298   (manual is incorrect, so I'm guessing)
+// 2000VA/1600W 51.2V 9Ah  = 460.8Wh  450
+#define WATT_HRS 224
+
+#define TZ  "EST5EDT,M3.2.0,M11.1.0"  // https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
+
+
 #include <ESPAsyncWebServer.h> // https://github.com/ESP32Async/ESPAsyncWebServer (3.7.2) and AsyncTCP (3.4.4)
 #include <time.h>
 #include <JsonParse.h> //https://github.com/CuriousTech/ESP-HVAC/tree/master/Libraries/JsonParse
@@ -37,21 +49,11 @@ SOFTWARE.
 #include "pages.h"
 #include "jsonstring.h"
 
-#define CS_PIN  7
+#define CS_PIN  GPIO_NUM_7
 #define DIN_PIN 6
-#define SCK_PIN 4
+#define SCK_PIN GPIO_NUM_4
 #define LED     8
 #define SSR     3
-
-// Model 0-7
-// 0 = 1000VA/600W 25.6V 6Ah   = 153.6Wh
-// 1 = 1000VA/800W 25.6V 9Ah   = 230.4Wh
-// 2 = 1500VA/1000W 51.2V 5.8Ah= 297Wh
-// 3 = 1500VA/1200W 51.2V 6Ah  = 307Wh (manual is incorrect, so I'm guessing)
-// 4 = 2000VA/1600W 51.2V 9Ah  = 460.8Wh
-#define UPS_MODEL 1
-
-#define TZ  "EST5EDT,M3.2.0,M11.1.0"  // https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
 
 bool bKeyGood;
 IPAddress lastIP;
@@ -97,22 +99,22 @@ struct flagBits{
   uint16_t OnUPS : 1;
   uint16_t OnAC : 1;
   uint16_t error : 1; // WattsIn will be error #
-  uint16_t model : 3; // 0 = 1000VA/600W, 1 = 1000VA/800W, ... see above
   uint16_t charging : 1;
-  uint16_t reserved1 : 2;
   uint16_t noData : 1; // display timeout indicator
-  uint16_t battDisplay : 3; // 0-5
-  uint16_t battLevel : 3; // 0-7 (will be phased out)
+  uint16_t battDisplay : 3; // 0-5 (1 and 5 blink)
+  uint16_t battLevel : 3; // 0-7 (used by the app for shutdown)
+  uint16_t reserved : 5;
 };
 
 struct upsData
 {
-  uint8_t  head[2]; // should be 16 bit aligned
+  uint8_t  head[2];  // should be 16 bit aligned
   flagBits b;
   uint8_t  VoltsIn;
   uint8_t  VoltsOut;
-  uint16_t WattsIn; // AC=UPS+outputs, Batt=pre-inverter, error=error #
+  uint16_t WattsIn;  // AC=UPS+outputs, Batt=pre-inverter, error=error #
   uint16_t WattsOut; // AC=just output, Batt=post-inverter (out-in=efficiency)
+  uint16_t WattHrs;  // Battery capacity
   uint8_t  battPercent;
   uint8_t  sum;
 }; // 12 bytes
@@ -337,13 +339,13 @@ void alert(String txt)
   ws.textAll(js.Close());
 }
 
-void ICACHE_RAM_ATTR CLK_ISR()
+static void CLK_ISR(void *arg)
 {
   hx.w <<= 1UL; // shift the bits in
   hx.w |= digitalRead(DIN_PIN);
 }
 
-void ICACHE_RAM_ATTR CS_ISR() // CS raises after 13th bit
+static void CS_ISR(void *arg) // CS raises after 13th bit
 {
   if(hx.h.cmd != 5) // write to address
   {
@@ -381,7 +383,6 @@ void setup()
 
   pinMode(DIN_PIN, INPUT);
   pinMode(SCK_PIN, INPUT);
-  pinMode(CS_PIN, INPUT);
   pinMode(SSR, OUTPUT);
   prefs.init();
 
@@ -436,8 +437,16 @@ void setup()
   });
 
   jsonParse.setList(jsonList1);
-  attachInterrupt(digitalPinToInterrupt(SCK_PIN), CLK_ISR, RISING);
-  attachInterrupt(digitalPinToInterrupt(CS_PIN), CS_ISR, RISING);
+
+  gpio_install_isr_service(ESP_INTR_FLAG_LEVEL3);
+
+  gpio_set_intr_type(SCK_PIN, GPIO_INTR_POSEDGE);
+  gpio_isr_handler_add(SCK_PIN, CLK_ISR, (void*) NULL);
+  gpio_intr_enable(SCK_PIN);
+
+  gpio_set_intr_type(CS_PIN, GPIO_INTR_POSEDGE);
+  gpio_isr_handler_add(CS_PIN, CS_ISR, (void*) NULL);
+  gpio_intr_enable(CS_PIN);
 }
 
 void loop()
@@ -689,14 +698,7 @@ void levelChange()
     nBarPercent = battLevels[binPayload.b.battLevel] - nLevelPercent;
   }
 
-  uint16_t nWhTotal = 150; // 1000VA/600W, close to 98% of 25.6V 6Ah
-  switch(binPayload.b.model)
-  {
-    case 1: nWhTotal = 224; break; // 1000VA/800W
-    case 2: nWhTotal = 290; break; // 1500VA/1000W
-    case 3: nWhTotal = 320; break; // 1500VA/1200W (guessing)
-    case 4: nWhTotal = 450; break; // 2000VA/1600W
-  }
+  uint16_t nWhTotal = WATT_HRS;
 
   // Wh * 3600 = watt seconds (810,000)  10%=81,000
   nWattsPerBar = nWhTotal * 3620 / nBarPercent; // actually 3621-3622 per hour
@@ -817,7 +819,7 @@ bool decodeSegments(upsData& udata)
     return true;
   }
 
-  udata.b.model = UPS_MODEL;
+  udata.WattHrs = WATT_HRS;
   udata.b.error = 0;
   udata.b.OnUPS = (ups_nibble[18] & 8) ? true:false;
   udata.b.OnAC = (ups_nibble[25] & 8) ? true:false;
@@ -846,12 +848,12 @@ bool decodeSegments(upsData& udata)
   if(wOut[0] != 0xFF && wOut[1] != 0xFF && wOut[2] != 0xFF && wOut[3] != 0xFF)
     udata.WattsOut = (wOut[0] * 1000) + (wOut[1] * 100) + (wOut[2] * 10) + wOut[3];
 
-  if(voltsIn <= 125) // change if 240V
+  if(voltsIn < 125) // change if 240V
   {
     if(voltsIn == 0 && udata.b.OnAC); // another glitch
     else udata.VoltsIn = voltsIn;
   }
-  if(voltsOut && voltsOut <= 125) // should never be 0
+  if(voltsOut && voltsOut < 125) // should never be 0
     udata.VoltsOut = voltsOut;
 
   switch( (ups_nibble[8] << 1) | (ups_nibble[9] & 1) )
