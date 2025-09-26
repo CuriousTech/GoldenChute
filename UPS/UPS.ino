@@ -35,7 +35,7 @@ SOFTWARE.
 // 1500VA/1000W 51.2V 5.8Ah= 297Wh    290
 // 1500VA/1200W 51.2V 6Ah  = 307Wh    298   (manual is incorrect, so I'm guessing)
 // 2000VA/1600W 51.2V 9Ah  = 460.8Wh  450
-#define WATT_HRS 224
+#define BATTERY_WH 224
 
 #define TZ  "EST5EDT,M3.2.0,M11.1.0"  // https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
 
@@ -50,7 +50,7 @@ SOFTWARE.
 #include "jsonstring.h"
 
 #define CS_PIN  GPIO_NUM_7
-#define DIN_PIN 6
+#define DIN_PIN GPIO_NUM_6
 #define SCK_PIN GPIO_NUM_4
 #define LED     8
 #define SSR     3
@@ -114,7 +114,7 @@ struct upsData
   uint8_t  VoltsOut;
   uint16_t WattsIn;  // AC=UPS+outputs, Batt=pre-inverter, error=error #
   uint16_t WattsOut; // AC=just output, Batt=post-inverter (out-in=efficiency)
-  uint16_t WattHrs;  // Battery capacity
+  uint16_t Capacity;  // Battery capacity in Wh
   uint8_t  battPercent;
   uint8_t  sum;
 }; // 12 bytes
@@ -342,7 +342,7 @@ void alert(String txt)
 static void CLK_ISR(void *arg)
 {
   hx.w <<= 1UL; // shift the bits in
-  hx.w |= digitalRead(DIN_PIN);
+  hx.w |= digitalRead(DIN_PIN); // gpio_get_level(DIN_PIN); test failed
 }
 
 static void CS_ISR(void *arg) // CS raises after 13th bit
@@ -438,14 +438,17 @@ void setup()
 
   jsonParse.setList(jsonList1);
 
+//  gpio_pad_select_gpio(DIN_PIN);
+//  gpio_set_direction(DIN_PIN, GPIO_MODE_INPUT);
+
   gpio_install_isr_service(ESP_INTR_FLAG_LEVEL3);
 
   gpio_set_intr_type(SCK_PIN, GPIO_INTR_POSEDGE);
-  gpio_isr_handler_add(SCK_PIN, CLK_ISR, (void*) NULL);
+  gpio_isr_handler_add(SCK_PIN, CLK_ISR, NULL);
   gpio_intr_enable(SCK_PIN);
 
   gpio_set_intr_type(CS_PIN, GPIO_INTR_POSEDGE);
-  gpio_isr_handler_add(CS_PIN, CS_ISR, (void*) NULL);
+  gpio_isr_handler_add(CS_PIN, CS_ISR, NULL);
   gpio_intr_enable(CS_PIN);
 }
 
@@ -461,7 +464,7 @@ void loop()
   static uint32_t lastMS;
 
   // button press simulator
-  if(lastMSbtn) // release button SSR after 400ms
+  if(lastMSbtn) // release button SSR after 500ms
   {
     if(millis() - lastMSbtn > 500)
     {
@@ -698,7 +701,7 @@ void levelChange()
     nBarPercent = battLevels[binPayload.b.battLevel] - nLevelPercent;
   }
 
-  uint16_t nWhTotal = WATT_HRS;
+  uint16_t nWhTotal = BATTERY_WH;
 
   // Wh * 3600 = watt seconds (810,000)  10%=81,000
   nWattsPerBar = nWhTotal * 3620 / nBarPercent; // actually 3621-3622 per hour
@@ -819,7 +822,7 @@ bool decodeSegments(upsData& udata)
     return true;
   }
 
-  udata.WattHrs = WATT_HRS;
+  udata.Capacity = BATTERY_WH;
   udata.b.error = 0;
   udata.b.OnUPS = (ups_nibble[18] & 8) ? true:false;
   udata.b.OnAC = (ups_nibble[25] & 8) ? true:false;
