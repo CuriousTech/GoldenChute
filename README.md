@@ -13,7 +13,7 @@ I beleve the first model had a push-on/push-off button and the display stayed on
   
 **Parts needed:**  
 -  [PCB on OSHPark](https://oshpark.com/shared_projects/kwL7G532) Rev 2 on 8/23/25.  This is set up for HW SPI now, but not implemented yet. Rev 1 had bad issues. The BMS SPI is sensitive and 5V, so the ESP 3.3V zeners are probably interfering.  
--  [ESP32-C3-super mini](https://www.aliexpress.us/item/3256807353297685.html?spm=a2g0o.tesla.0.0.68bcQMQPQMQPhl&pdp_npi=5%40dis%21USD%21%242.70%21%240.99%21%21%21%21%21%40210318ec17532528750118282ee624%2112000041210885173%21btf%21%21%21%211%210&afTraceInfo=1005007539612437__pc__c_ppc_item_bridge_pc_jfy_wf__5EfmYTO__1753252875356&gatewayAdapt=glo2usa4itemAdapt)  
+-  [ESP32-C3-super mini](https://www.aliexpress.us/item/3256807353297685.html?spm=a2g0o.tesla.0.0.68bcQMQPQMQPhl&pdp_npi=5%40dis%21USD%21%242.70%21%240.99%21%21%21%21%21%40210318ec17532528750118282ee624%2112000041210885173%21btf%21%21%21%211%210&afTraceInfo=1005007539612437__pc__c_ppc_item_bridge_pc_jfy_wf__5EfmYTO__1753252875356&gatewayAdapt=glo2usa4itemAdapt)  or [ESP32-S3-super mini](https://www.aliexpress.us/item/3256809251035142.html?src=google&pdp_npi=4%40dis%21USD%219.58%214.77%21%21%21%21%21%40%2112000049096706686%21ppc%21%21%21&snps=y&snpsid=1&retailTag=FullHosting&traffic_server_nav=true&src=google&albch=shopping&acnt=752-015-9270&isdl=y&slnk=&plac=&mtctp=&albbt=Google_7_shopping&aff_platform=google&aff_short_key=_oDeeeiG&gclsrc=aw.ds&albagn=888888&ds_e_adid=765876812054&ds_e_matchtype=search&ds_e_device=c&ds_e_network=g&ds_e_product_group_id=2432726605827&ds_e_product_id=en3256809251035142&ds_e_product_merchant_id=5551326180&ds_e_product_country=US&ds_e_product_language=en&ds_e_product_channel=online&ds_e_product_store_id=&ds_url_v=2&albcp=22836103672&albag=181655310623&isSmbAutoCall=false&needSmbHouyi=false&gad_source=1&gad_campaignid=22836103672&gbraid=0AAAAA_eFwRAyv9Rq_0If5BZwSjsvJ58sZ&gclid=CjwKCAjw_-3GBhAYEiwAjh9fUAt70B5cIL68h4UN8Gi5cf2Gmbqrgfq4Euy-TqJON3bV4UEJ49vdTxoCdyoQAvD_BwE&gatewayAdapt=glo2usa) for USB-HID support (native Windows, NUT, etc.)
 -  AQY282S (SSR)  
 -  R2 470 ohm 0805 resistor  
 -  R1 ??? ohm 0805 resistor (works if left off / ungrounded. This is odd! Will try 10K later, but leaving it off for now)  
@@ -33,7 +33,7 @@ Cut a notch in the rear panel to fit the USB cable.
   
 **Arduino:**  
 Settings for router SSID and SSID password are in Prefs.h, as well as the remote password for web control. If they aren't set or the SSID changes, EspTouch can be used.  
-Compiling the code should be easy. Most information is in UPS.ino, like where to get the libraries needed, and settings for the ESP32-C3-super mini such as enabling CDC on boot (for serial output). There's also an ESP32-S3 super mini that is pin compatible.  
+Compiling the code should be easy. Most information is in UPS.ino, like where to get the libraries needed, and settings for the ESP32-C3-super mini such as enabling CDC on boot (for serial output). There's also an ESP32-S3 super mini that is pin compatible, and has HID support for UPS emulation (coming soon).  
   
 **Windows app:**  
 Extract the exe and move it to somewhere like C:\Goldenamte.  
