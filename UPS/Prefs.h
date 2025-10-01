@@ -20,7 +20,10 @@ public:
   char      szName[32] = "UPS"; // mDNS and OTA name
   char      szPassword[32] = "password"; // password for web
   uint16_t  ppkw = 15; // cents
-  uint8_t   res[28]; // change the length to force overwrite
+  uint32_t  initialDate = 0;
+  uint16_t  nPercentUsage = 0;
+  uint16_t  nCycles = 0;
+  uint8_t   res[20]; // change the length to force overwrite
   uint8_t   end;
 private:
   uint16_t Fletcher16( uint8_t* data, int count);
