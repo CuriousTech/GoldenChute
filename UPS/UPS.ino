@@ -116,6 +116,8 @@ struct upsData
   uint16_t WattsOut; // AC=just output, Batt=post-inverter (out-in=efficiency)
   uint16_t Capacity;  // Battery capacity in Wh
   uint8_t  battPercent;
+  uint8_t  Health;
+  uint8_t  reserved;
   uint8_t  sum;
 }; // 12 bytes
 
@@ -612,6 +614,9 @@ void loop()
           configTime(0, 0, "pool.ntp.org");
           setenv("TZ", TZ, 1);
           tzset();
+
+          if(prefs.initialDate == 0)
+            prefs.initialDate = time(nullptr); // set date of first use
         }
       }
       else if(WiFi.status() == WL_CONNECTION_LOST) // connection lost
@@ -726,6 +731,15 @@ void calcPercent()
   else if (binPayload.b.OnUPS == 0 && lastOnUPS) // Switching off battery
   {
     bNeedRestart = true;
+
+    uint16_t nPercUsed = (100 - binPayload.battPercent);
+    // TODO: add an exponent
+    prefs.nPercentUsage += nPercUsed;
+    while(prefs.nPercentUsage > 100)
+    {
+      prefs.nCycles++; // Add 1 cycle for every 100% use
+      prefs.nPercentUsage -= 100;
+    }
   }
 
   if (binPayload.b.OnUPS)
@@ -823,6 +837,7 @@ bool decodeSegments(upsData& udata)
   }
 
   udata.Capacity = BATTERY_WH;
+  udata.Health = 100;
   udata.b.error = 0;
   udata.b.OnUPS = (ups_nibble[18] & 8) ? true:false;
   udata.b.OnAC = (ups_nibble[25] & 8) ? true:false;
