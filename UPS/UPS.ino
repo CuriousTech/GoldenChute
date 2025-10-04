@@ -24,7 +24,7 @@ SOFTWARE.
 // Goldenmate UPS with ESP32-C3-super mini
 
 // Build with Arduino IDE 1.8.19, ESP32 2.0.14 or 3.2.0
-// CPU Speed: Anything with WiFi
+// CPU Speed: 160MHz (WiFi)
 // Partition: Default 4MB with anything
 // USB CDC On Boot: Enabled - for serial output over USB
 
@@ -55,6 +55,12 @@ SOFTWARE.
 #define LED     8
 #define SSR     3
 
+// Auto-enabled when building for ESP32-S3 and uses HID
+#if CONFIG_TINYUSB_HID_ENABLED
+#include "HIDPowerDev.h"
+HIDPowerDevice Device;
+#endif
+
 bool bKeyGood;
 IPAddress lastIP;
 int nWrongPass;
@@ -80,8 +86,10 @@ Prefs prefs;
 
 bool bConfigDone; // EspTouch config
 bool bStarted; // WiFi started
+bool bRequestSD = false;
+
 bool bGMFormatSerial;
-uint32_t spiMS;
+uint32_t spiMS = 10000000;
 bool bNeedRestart; // display may need fix after switching from battery to AC
 
 // percent calculator
@@ -94,6 +102,8 @@ uint32_t nWattHrArr[24];
 uint32_t nWattsAccumHr;
 uint16_t nWhCnt;
 uint16_t nWattMin[24], nWattMax[24];
+
+uint8_t nDrainStartPercent;
 
 struct flagBits{
   uint16_t OnUPS : 1;
@@ -119,7 +129,7 @@ struct upsData
   uint8_t  Health;
   uint8_t  reserved;
   uint8_t  sum;
-}; // 12 bytes
+}; // 16 bytes
 
 upsData binPayload;
 
@@ -157,6 +167,10 @@ String dataJson()
   js.Array("wattArr", nWattHrArr, 24);
   js.Array("wmin", nWattMin, 24);
   js.Array("wmax", nWattMax, 24);
+  js.Var("percuse", prefs.nPercentUsage);
+  js.Var("cycles", prefs.nCycles);
+  js.Var("initdate", prefs.initialDate);
+  
   return js.Close();
 }
 
@@ -235,16 +249,22 @@ void jsonCallback(int16_t iName, int iValue, char *psValue)
       {
         static char data[] = "HIBR";
         wsb.binaryAll(data, 4);
+#if !CONFIG_TINYUSB_HID_ENABLED
         static uint8_t data2[] = {0xAB, 'H','I','B','R'};
         Serial.write(data2, 5);
+#endif
       }
       break;
     case 2: // shutdown
       {
         static char data[] = "SHDN";
         wsb.binaryAll(data, 4);
+#if CONFIG_TINYUSB_HID_ENABLED
+        bRequestSD = true;
+#else
         static uint8_t data2[] = {0xAB, 'S','H','D','N'};
         Serial.write(data2, 5);
+#endif
       }
       break;
     case 3: // restart
@@ -344,7 +364,7 @@ void alert(String txt)
 static void CLK_ISR(void *arg)
 {
   hx.w <<= 1UL; // shift the bits in
-  hx.w |= digitalRead(DIN_PIN); // gpio_get_level(DIN_PIN); test failed
+  hx.w |= digitalRead(DIN_PIN);
 }
 
 static void CS_ISR(void *arg) // CS raises after 13th bit
@@ -381,8 +401,7 @@ void checksumData()
 
 void setup()
 {
-  Serial.begin(115200); // USB serial data rate (9600 is probably more common)
-
+  Serial.begin(115200); // USB serial data rate (9600 is probably more common) Ignnored if HID is enabled
   pinMode(DIN_PIN, INPUT);
   pinMode(SCK_PIN, INPUT);
   pinMode(SSR, OUTPUT);
@@ -440,9 +459,6 @@ void setup()
 
   jsonParse.setList(jsonList1);
 
-//  gpio_pad_select_gpio(DIN_PIN);
-//  gpio_set_direction(DIN_PIN, GPIO_MODE_INPUT);
-
   gpio_install_isr_service(ESP_INTR_FLAG_LEVEL3);
 
   gpio_set_intr_type(SCK_PIN, GPIO_INTR_POSEDGE);
@@ -452,6 +468,19 @@ void setup()
   gpio_set_intr_type(CS_PIN, GPIO_INTR_POSEDGE);
   gpio_isr_handler_add(CS_PIN, CS_ISR, NULL);
   gpio_intr_enable(CS_PIN);
+
+  // Set init date manually (only needed once)
+/*
+  tm initDate = {0};
+  initDate.tm_year = 125; // 2025
+  initDate.tm_mon = 1; // Jan
+  initDate.tm_mday = 1; // day of month
+  prefs.initialDate = mktime(&initDate);
+*/
+
+#if CONFIG_TINYUSB_HID_ENABLED
+  Device.begin();
+#endif
 }
 
 void loop()
@@ -495,11 +524,12 @@ void loop()
 
       ws.textAll( statusJson() ); // send to web page or other websocket clients
 
-      if(binClientCnt) // send to Windows Goldenchute client(s)
+      if(binClientCnt) // send to Windows Goldenchute client(s) over WiFi
       {
         wsb.binaryAll((uint8_t*)&binPayload, sizeof(binPayload));
       }
 
+#if !CONFIG_TINYUSB_HID_ENABLED
       if(bGMFormatSerial)
       {
         Serial.write((uint8_t*)&binPayload, sizeof(binPayload) );
@@ -522,6 +552,7 @@ void loop()
         s += binPayload.battPercent;
         Serial.println(s);
       }
+#endif
     }
   }
 
@@ -566,6 +597,7 @@ void loop()
             wsb.binaryAll((uint8_t*)&binPayload, sizeof(binPayload));
           }
     
+#if !CONFIG_TINYUSB_HID_ENABLED
           if(bGMFormatSerial) // binary over serial
           {
             Serial.write((uint8_t*)&binPayload, sizeof(binPayload) );
@@ -574,6 +606,7 @@ void loop()
           {
             Serial.println("NODATA");          
           }
+#endif
         }
         bRestartingDisplay = false;
         bPushSSR = true;
@@ -616,7 +649,9 @@ void loop()
           tzset();
 
           if(prefs.initialDate == 0)
+          {
             prefs.initialDate = time(nullptr); // set date of first use
+          }
         }
       }
       else if(WiFi.status() == WL_CONNECTION_LOST) // connection lost
@@ -632,6 +667,25 @@ void loop()
       }
     }
 
+#if CONFIG_TINYUSB_HID_ENABLED
+    PresentStatus ps;
+
+    ps.w = 0;
+
+    ps.b.Charging = binPayload.b.charging;
+    ps.b.ACPresent = binPayload.b.OnAC;
+    ps.b.Discharging = binPayload.b.OnUPS;
+    ps.b.BatteryPresent = 1;
+    ps.b.FullyCharged = (binPayload.b.charging == 0 && binPayload.b.OnAC == 1);
+    ps.b.BelowRemainingCapacityLimit = (binPayload.battPercent <= 4);
+    ps.b.ShutdownImminent = (binPayload.battPercent <= 2);
+    ps.b.ShutdownRequested = bRequestSD;
+
+    Device.SetPresentStatus(ps.w);
+    Device.SetRemainingCapacity(binPayload.battPercent);
+
+#endif
+  
     if(hour_save != lTime.tm_hour)
     {
       hour_save = lTime.tm_hour;
@@ -651,7 +705,7 @@ void loop()
       nWattMin[hour_save] = 0;
       nWattMax[hour_save] = 0;
 
-      if(hour_save == 2) // todo: update time daily or nah?
+      if(hour_save == 2)
       {
         configTime(0, 0, "pool.ntp.org");
         setenv("TZ", TZ, 1);
@@ -672,11 +726,11 @@ void loop()
 // set mix/max every reading
 void calcMinMax()
 {
-  if(lTime.tm_year < 124)
+  if(lTime.tm_year < 124) // invalid
     return;
 
  if(nWattMin[lTime.tm_hour] == 0)
-  nWattMin[lTime.tm_hour] = 900;
+  nWattMin[lTime.tm_hour] = 1000;
  if(nWattMin[lTime.tm_hour] > binPayload.WattsIn)
    nWattMin[lTime.tm_hour] = binPayload.WattsIn;
  if(nWattMax[lTime.tm_hour] < binPayload.WattsIn)
@@ -691,7 +745,7 @@ void levelChange()
     if(binPayload.b.battLevel)
     {
       nLevelPercent = battLevels[binPayload.b.battLevel - 1];
-      nBarPercent = battLevels[binPayload.b.battLevel] - battLevels[binPayload.b.battLevel - 1];
+      nBarPercent = battLevels[binPayload.b.battLevel] - nLevelPercent;
     }
     else
     {
@@ -706,10 +760,8 @@ void levelChange()
     nBarPercent = battLevels[binPayload.b.battLevel] - nLevelPercent;
   }
 
-  uint16_t nWhTotal = BATTERY_WH;
-
   // Wh * 3600 = watt seconds (810,000)  10%=81,000
-  nWattsPerBar = nWhTotal * 3620 / nBarPercent; // actually 3621-3622 per hour
+  nWattsPerBar = BATTERY_WH * 3620 / nBarPercent; // actually 3621-3622 per hour
 
   if(binPayload.b.OnUPS)
     nWattsAccum = nWattsPerBar; // will be decrementing
@@ -726,13 +778,14 @@ void calcPercent()
   if (binPayload.b.battLevel != lvl || (binPayload.b.OnUPS && !lastOnUPS) ) // Switching to backup triggers level change to start accumulator
   {
     lvl = binPayload.b.battLevel;
+    nDrainStartPercent = binPayload.battPercent; // beginning of discharge
     levelChange();
   }
   else if (binPayload.b.OnUPS == 0 && lastOnUPS) // Switching off battery
   {
-    bNeedRestart = true;
+    bNeedRestart = true; // sometimes the display glitches. Allowing it to timeout and restart causes inititialize commands to be resent
 
-    uint16_t nPercUsed = (100 - binPayload.battPercent);
+    uint8_t nPercUsed = (nDrainStartPercent - binPayload.battPercent);
     // TODO: add an exponent
     prefs.nPercentUsage += nPercUsed;
     while(prefs.nPercentUsage > 100)
@@ -740,6 +793,7 @@ void calcPercent()
       prefs.nCycles++; // Add 1 cycle for every 100% use
       prefs.nPercentUsage -= 100;
     }
+    prefs.update();
   }
 
   if (binPayload.b.OnUPS)
@@ -761,7 +815,7 @@ void calcPercent()
         nBarPercent = 0;
       }
     }
-    else
+    else // must be charging
     {
       binPayload.b.charging = 1;
       nWattsAccum += binPayload.WattsIn - binPayload.WattsOut - 1; // charge watts - 1W running power
@@ -775,6 +829,7 @@ void calcPercent()
 
   lastOnUPS = binPayload.b.OnUPS;
 
+  // mid-bar calc
   if (nBarPercent)
   {
     int percDiff = min(nWattsAccum * nBarPercent / nWattsPerBar, (uint32_t)nBarPercent);
@@ -786,6 +841,7 @@ void calcPercent()
 // Check for incoming serial data
 void checkSerial()
 {
+#if !CONFIG_TINYUSB_HID_ENABLED
   static uint8_t buffer[8];
   static uint8_t bufIdx = 0;
 
@@ -802,21 +858,21 @@ void checkSerial()
       }
       else if( buffer[0] == 0xAA && buffer[1] == 'W' && buffer[2] == 'H' && buffer[3] == 0)
       {
-        nWattHrArr[lTime.tm_hour] = nWattsAccumHr / 3621; // current this hour
         uint32_t binData[26];
         binData[0] = 0x00DEBCAA;
         binData[1] = nWattsAccumHr / 3621; // current this hour
-        memcpy( (uint8_t*)&binData[2], &nWattHrArr, sizeof(nWattHrArr));
+        memcpy( (uint8_t*)&binData[2], &nWattHrArr, sizeof(nWattHrArr)); // last 24hrs of data
         Serial.write((uint8_t*)&binData, sizeof(binData));
       }
       else
       {
-      // bGMFormatSerial = false;
+        bGMFormatSerial = false;
       // Some other app
       }
       bufIdx = 0;
     }
   }
+#endif
 }
 
 bool decodeSegments(upsData& udata)
