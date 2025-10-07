@@ -82,8 +82,7 @@ public:
 
   uint16_t _onGetDescriptor(uint8_t* buffer);
   uint16_t _onGetFeature(uint8_t report_id, uint8_t* buffer, uint16_t len);
-  void SetPresentStatus(uint16_t status);
-  void SetRemainingCapacity(uint8_t cap);
+  void SetPresentStatus(uint16_t status, uint8_t cap);
 
 private:
     uint8_t _PresentStatus[2];
