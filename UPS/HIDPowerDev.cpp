@@ -273,14 +273,10 @@ uint16_t HIDPowerDevice::_onGetFeature(uint8_t report_id, uint8_t* buffer, uint1
   return 0;
 }
 
-void HIDPowerDevice::SetPresentStatus(uint16_t status)
+void HIDPowerDevice::SetPresentStatus(uint16_t status, uint8_t cap)
 {
   _PresentStatus[0] = (uint8_t)(status & 0xFF);
   _PresentStatus[1] = (uint8_t)(status >> 8);
-}
-
-void HIDPowerDevice::SetRemainingCapacity(uint8_t cap)
-{
   _RemainingCap = cap;
 }
 
@@ -289,6 +285,5 @@ uint16_t HIDPowerDevice::_onGetDescriptor(uint8_t* buffer)
   memcpy(buffer, report_descriptor, sizeof(report_descriptor));
   return sizeof(report_descriptor);
 }
-
 
 #endif
