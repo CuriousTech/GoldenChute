@@ -49,11 +49,21 @@ SOFTWARE.
 #include "pages.h"
 #include "jsonstring.h"
 
+// ESP32-C3 on r2 PCB
+#if CONFIG_IDF_TARGET_ESP32C3
 #define CS_PIN  GPIO_NUM_7
-#define DIN_PIN GPIO_NUM_6
+#define DIN_PIN GPIO_NUM_6 // GPIO_NUM_8 // PCB r3
 #define SCK_PIN GPIO_NUM_4
 #define LED     8
 #define SSR     3
+// ESP32-S3 on r3 PCB
+#elif CONFIG_IDF_TARGET_ESP32S3
+#define CS_PIN  GPIO_NUM_1
+#define DIN_PIN GPIO_NUM_2
+#define SCK_PIN GPIO_NUM_13
+#define LED     48
+#define SSR     12
+#endif
 
 // Auto-enabled when building for ESP32-S3 and uses HID
 #if CONFIG_TINYUSB_HID_ENABLED
@@ -113,7 +123,8 @@ struct flagBits{
   uint16_t noData : 1; // display timeout indicator
   uint16_t battDisplay : 3; // 0-5 (1 and 5 blink)
   uint16_t battLevel : 3; // 0-7 (used by the app for shutdown)
-  uint16_t reserved : 5;
+  uint16_t needCycle : 1; // if it's been over 90 days with no >=70% cycle
+  uint16_t reserved : 4;
 };
 
 struct upsData
@@ -170,7 +181,8 @@ String dataJson()
   js.Var("percuse", prefs.nPercentUsage);
   js.Var("cycles", prefs.nCycles);
   js.Var("initdate", prefs.initialDate);
-  
+  js.Var("cycledate", prefs.lastCycleDate);
+
   return js.Close();
 }
 
@@ -478,6 +490,8 @@ void setup()
   prefs.initialDate = mktime(&initDate);
 */
 
+  binPayload.b.noData = 1; // start out with a fail
+
 #if CONFIG_TINYUSB_HID_ENABLED
   Device.begin();
 #endif
@@ -596,8 +610,26 @@ void loop()
           {
             wsb.binaryAll((uint8_t*)&binPayload, sizeof(binPayload));
           }
-    
-#if !CONFIG_TINYUSB_HID_ENABLED
+
+#if CONFIG_TINYUSB_HID_ENABLED
+          PresentStatus ps;
+      
+          ps.w = 0;
+      
+          // just in case it's not installed properly
+          uint8_t percent = (binPayload.noData) ? 100 : binPayload.battPercent;
+      
+          ps.b.Charging = binPayload.b.charging;
+          ps.b.ACPresent = binPayload.b.OnAC;
+          ps.b.Discharging = binPayload.b.OnUPS;
+          ps.b.BatteryPresent = 1;
+          ps.b.FullyCharged = (binPayload.b.charging == 0 && binPayload.b.OnAC == 1);
+          ps.b.BelowRemainingCapacityLimit = (percent <= 4);
+          ps.b.ShutdownImminent = (percent <= 2);
+          ps.b.ShutdownRequested = bRequestSD;
+          bRequestDS = false;
+          Device.SetPresentStatus(ps.w, percent);
+#else
           if(bGMFormatSerial) // binary over serial
           {
             Serial.write((uint8_t*)&binPayload, sizeof(binPayload) );
@@ -652,6 +684,10 @@ void loop()
           {
             prefs.initialDate = time(nullptr); // set date of first use
           }
+          if(prefs.lastCycleDate == 0)
+          {
+            prefs.lastCycleDate = time(nullptr); // set date of first use
+          }
         }
       }
       else if(WiFi.status() == WL_CONNECTION_LOST) // connection lost
@@ -666,25 +702,6 @@ void loop()
         bStarted = false;
       }
     }
-
-#if CONFIG_TINYUSB_HID_ENABLED
-    PresentStatus ps;
-
-    ps.w = 0;
-
-    ps.b.Charging = binPayload.b.charging;
-    ps.b.ACPresent = binPayload.b.OnAC;
-    ps.b.Discharging = binPayload.b.OnUPS;
-    ps.b.BatteryPresent = 1;
-    ps.b.FullyCharged = (binPayload.b.charging == 0 && binPayload.b.OnAC == 1);
-    ps.b.BelowRemainingCapacityLimit = (binPayload.battPercent <= 4);
-    ps.b.ShutdownImminent = (binPayload.battPercent <= 2);
-    ps.b.ShutdownRequested = bRequestSD;
-
-    Device.SetPresentStatus(ps.w);
-    Device.SetRemainingCapacity(binPayload.battPercent);
-
-#endif
   
     if(hour_save != lTime.tm_hour)
     {
@@ -788,6 +805,13 @@ void calcPercent()
     uint8_t nPercUsed = (nDrainStartPercent - binPayload.battPercent);
     // TODO: add an exponent
     prefs.nPercentUsage += nPercUsed;
+
+    if(prefs.nPercentUsage >= 70)
+      prefs.lastCycleDate = time(nullptr);
+
+    int16_t nDays = (time(nullptr) - prefs.lastCycleDate) / 3600;
+    binPayload.b.needCycle = (nDays >= 90);
+    
     while(prefs.nPercentUsage > 100)
     {
       prefs.nCycles++; // Add 1 cycle for every 100% use
