@@ -29,13 +29,13 @@ SOFTWARE.
 // USB CDC On Boot: Enabled - for serial output over USB
 
 ///////////////////////////////////////////////////
-//  Model      Volts Amps    Wh      ~97% integer
+//  Model      Volts Amps    Wh      ~98% integer
 // 1000VA/600W 25.6V 6Ah   = 153.6Wh  150
-// 1000VA/800W 25.6V 9Ah   = 230.4Wh  224
-// 1500VA/1000W 51.2V 5.8Ah= 297Wh    290
-// 1500VA/1200W 51.2V 6Ah  = 307Wh    298   (manual is incorrect, so I'm guessing)
-// 2000VA/1600W 51.2V 9Ah  = 460.8Wh  450
-#define BATTERY_WH 224
+// 1000VA/800W 25.6V 9Ah   = 230.4Wh  226
+// 1500VA/1000W 51.2V 5.8Ah= 297Wh    291
+// 1500VA/1200W 51.2V 6Ah  = 307Wh    301   (manual is incorrect, so I'm guessing)
+// 2000VA/1600W 51.2V 9Ah  = 460.8Wh  451
+#define BATTERY_WH 226
 
 #define TZ  "EST5EDT,M3.2.0,M11.1.0"  // https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
 
