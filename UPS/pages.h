@@ -153,7 +153,7 @@ function draw(){
   c.fillText(upsState.wattsOut+'w', 240, 76)
 
   c.fillStyle=c.strokeStyle='rgb(0,120,255)'
-  c.roundRect(106,y+8,48,66,3)
+  c.roundRect(106,24,48,66,3)
   c.stroke()
   y = 76
   for(i = 0; i < 5; i++)
