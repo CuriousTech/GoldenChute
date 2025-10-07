@@ -54,6 +54,10 @@ function openSocket(){
     case 'state':
       dt=new Date(d.t*1000)
       a.topbar.innerHTML=((+d.connected)?'PC Connected ':'PC Disonnected')+'&nbsp; '+dt.toLocaleTimeString()+' &nbsp;'+d.rssi+'dB'
+      dtc=new Date(d.cycledate*1000)
+      days=(d.t-d.cycledate)/3600
+      a.cycle.innerHTML=(days>=90)?'<span style=\"color: red;\">':''
+      a.cycle.innerHTML+='Last cycle: '+dtc.getFullYear()+'/'+(dtc.getMonth()+1)+'/'+dtc.getDate()
       noData=+d.nodata
       a.ppkwh.value=ppkwh=+d.ppkwh/100
       wmin=d.wmin
@@ -149,6 +153,8 @@ function draw(){
   c.fillText(upsState.wattsOut+'w', 240, 76)
 
   c.fillStyle=c.strokeStyle='rgb(0,120,255)'
+  c.roundRect(106,y+8,48,66,3)
+  c.stroke()
   y = 76
   for(i = 0; i < 5; i++)
   {
@@ -313,6 +319,7 @@ openSocket()
 </td></tr>
 </table>
 <table width=278>
+<tr><td id="cycle"></td></tr>
 <tr><td>PPKWH <input id="ppkwh" type=text size=4 onChange="{setVar('ppkwh',(ppkwh=+this.value*100).toFixed() )}"> &nbsp; 
 <input id="myKey" name="key" type=text size=40 placeholder="password" style="width: 100px" onChange="{localStorage.setItem('key', key = document.all.myKey.value)}"></td></tr>
 </table>
