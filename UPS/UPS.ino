@@ -164,6 +164,7 @@ volatile bool bReady;
 bool decodeSegments(upsData& udata);
 void calcPercent(void);
 void checkSerial(void);
+uint8_t battHealth(void);
 
 String dataJson()
 {
@@ -182,6 +183,7 @@ String dataJson()
   js.Var("cycles", prefs.nCycles);
   js.Var("initdate", prefs.initialDate);
   js.Var("cycledate", prefs.lastCycleDate);
+  js.Var("health", battHealth());
 
   return js.Close();
 }
@@ -786,6 +788,14 @@ void levelChange()
     nWattsAccum = 0; // will be incrementing
 }
 
+uint8_t battHealth()
+{
+  uint32_t ageDays = (time(nullptr) - prefs.initialDate) / 3600;
+  uint8_t percDrop = (ageDays / 182); // about 2% per year
+  percDrop += prefs.nCycles / 50; // 1% per 50 cycles
+  return 98 - percDrop; // starting at 98%
+}
+
 void calcPercent()
 {
   static uint8_t lvl = 0;
@@ -803,7 +813,7 @@ void calcPercent()
     bNeedRestart = true; // sometimes the display glitches. Allowing it to timeout and restart causes inititialize commands to be resent
 
     uint8_t nPercUsed = (nDrainStartPercent - binPayload.battPercent);
-    // TODO: add an exponent
+    // TODO: add an exponent - 100% = 2x 50% = 5x 30% ish
     prefs.nPercentUsage += nPercUsed;
 
     if(prefs.nPercentUsage >= 70)
@@ -917,7 +927,7 @@ bool decodeSegments(upsData& udata)
   }
 
   udata.Capacity = BATTERY_WH;
-  udata.Health = 100;
+  udata.Health = battHealth();
   udata.b.error = 0;
   udata.b.OnUPS = (ups_nibble[18] & 8) ? true:false;
   udata.b.OnAC = (ups_nibble[25] & 8) ? true:false;
