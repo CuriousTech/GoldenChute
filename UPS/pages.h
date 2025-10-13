@@ -57,7 +57,9 @@ function openSocket(){
       dtc=new Date(d.cycledate*1000)
       days=(d.t-d.cycledate)/3600
       a.cycle.innerHTML=(days>=90)?'<span style=\"color: red;\">':''
-      a.cycle.innerHTML+='Last cycle: '+dtc.getFullYear()+'/'+(dtc.getMonth()+1)+'/'+dtc.getDate()
+      a.cycle.innerHTML+=dtc.getFullYear()+'/'+(dtc.getMonth()+1)+'/'+dtc.getDate()
+      a.cycles.innerHTML=d.cycles
+      a.health.innerHTML=d.health+'%'
       noData=+d.nodata
       a.ppkwh.value=ppkwh=+d.ppkwh/100
       wmin=d.wmin
@@ -136,15 +138,6 @@ function draw(){
   c.fillText(upsState.battPercent+'%', 148, 10)
   c.fillText("Output", 220, 10)
 
-  c.beginPath()
-  c.moveTo(18,20)
-  c.lineTo(90,20)
-  c.stroke()
-  c.beginPath()
-  c.moveTo(178,20)
-  c.lineTo(246,20)
-  c.stroke()
-
   c.font='italic 20pt sans-serif'
   if(upsState.voltsIn)
     c.fillText(upsState.voltsIn+'v', 84, 40)
@@ -164,6 +157,13 @@ function draw(){
       c.fillRect(110, y, 40, 10)
     y -= 12
   }
+  c.strokeStyle='rgb(210,255,255)'
+  c.beginPath()
+  c.moveTo(18,20)
+  c.lineTo(90,20)
+  c.moveTo(178,20)
+  c.lineTo(246,20)
+  c.stroke()
 }
 
 function drawstuff(){
@@ -319,9 +319,11 @@ openSocket()
 </td></tr>
 </table>
 <table width=278>
-<tr><td id="cycle"></td></tr>
-<tr><td>PPKWH <input id="ppkwh" type=text size=4 onChange="{setVar('ppkwh',(ppkwh=+this.value*100).toFixed() )}"> &nbsp; 
-<input id="myKey" name="key" type=text size=40 placeholder="password" style="width: 100px" onChange="{localStorage.setItem('key', key = document.all.myKey.value)}"></td></tr>
+<tr><td>Last cycle: </td><td id="cycle"></td></tr>
+<tr><td>Health: </td><td id="health"></td></tr>
+<tr><td>Cycles: </td><td id="cycles"></td></tr>
+<tr><td>PPKWH <input id="ppkwh" type=text size=4 onChange="{setVar('ppkwh',(ppkwh=+this.value*100).toFixed() )}"> </td>
+<td><input id="myKey" name="key" type=text size=40 placeholder="password" style="width: 100px" onChange="{localStorage.setItem('key', key = document.all.myKey.value)}"></td></tr>
 </table>
 </body>
 </html>
