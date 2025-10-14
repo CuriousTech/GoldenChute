@@ -208,7 +208,7 @@ HIDPowerDevice::HIDPowerDevice(void)
     USB.productName("USB-UPS-GM");
     USB.serialNumber("UPS01234");
     USB.manufacturerName("Goldenmate");
-    USB.usbPower(0);
+    USB.usbPower(70);
   }
 
   USB.begin();
