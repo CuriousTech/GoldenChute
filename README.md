@@ -42,17 +42,15 @@ Right click on the exe, and select "Show more Options" then select "Create short
 Double-click to run the app.  
 Clicking on the top-right corner of the app will hide it.  
 Right-click for context menu (settings, quit, clear log/chart)  
-The outage log (top right area, hidden when small) is blank until an entry is created.  Entries are comma delimited lines saved in a file in the local exe folder, named ups_log.txt.  
+The outage log (top right area, hidden when small) is blank until an entry is created.  Entries are comma delimited lines saved in a file in the local exe folder, named ups_log.txt (or ups_log1.txt for the 2nd instance...).  
 **Settings:**  
 Right-click in the window, or go to the tray, and right click the icon for the menu. Select "Settings" and enter the IP address of the ESP32 device in the format "192.168.xxx.xxx" which you can find in the Arduino IDE ports, named UPS (192.168.xxx.xxx).  Your router should also be on UPS when using this method.  
 If it connects, there should be a small red circle in the top left of the app. This will blink when data is received. Serial is the same.  
 COM Port (Note: using serial will cause the ESP32 to reset every time the app exits or another app accesses the COM port, which loses WH history and may get off track if charging).  
 The radio buttons allow selecting either COM or websocket.  
-Percent to shut down: The % is just the bar levels, not actual percent (which could possibly be inaccurate). There is a 10 second delay when it reaches the desired %, then it will shut down or hibernate/hibrid-sleep if that is set up properly and doesn't fail, otherwise it will shut down.  
-Note: Hibrid-sleep can wake immediately by odd USB devices if not set up properly. It should be tested before use.  
+Percent to shut down: Active (red bars left of battery in the main display and tray icon) and Inactive (right red bars) depends on whether the monitor is in standby. The depth of discharge (D.O.D.) determines the impact on health. When inactive, it should shut down at 70% for best health. When active, more time can be allowed for manual shutdown. The % is just the bar levels, not actual percent (which could possibly be inaccurate). There is a 10 second delay when it reaches the desired %, then it will shut down or hibernate/hibrid-sleep if that is set up properly and doesn't fail, otherwise it will shut down.  
+Note: Hibrid-sleep can wake immediately by odd USB devices if not set up properly. It should be tested before use. It will also slowly drain the battery over time.  
 Skip seconds: 0 will add data to the chart every second (total 24 hours). 1 would be 48 hours, but miss every other second.  
 The web page also allows manual remote shutdown/hibernate. The password will need to be the same here as in Prefs.h  Test it once to esnure it works properly.  
 Alerts currently just cause the window to popup and show red text over the "Input" label, such as "Serial timeout/in use" or WebSocket disconnected"  
 Hide after start causes the window to hide 4 seconds after startup.  
-Battery health can be used to adjust the time remaining calculation. The time is based on the modeol ID (i.e. 1000VA) assuming a 90% efficient inverter (900Wh), current average watts used, and 100% everywhere else, so starting with 95~97% health should be close. The information from the display is 5 bars, but level 1 blinks to indicate 5-9% and 5 blinks to indicate 80-90%, so if it switches to backup while charging, the time could be a little low, but recalculates when the level changes. If the ESP is never reset, it should stay very close.  
-  
