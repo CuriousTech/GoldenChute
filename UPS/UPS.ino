@@ -816,14 +816,12 @@ void calcPercent()
     // TODO: add an exponent - 100% = 2x 50% = 5x 30% ish
     prefs.nPercentUsage += nPercUsed;
 
-    if(prefs.nPercentUsage >= 70)
-      prefs.lastCycleDate = time(nullptr);
-
     int16_t nDays = (time(nullptr) - prefs.lastCycleDate) / 3600;
     binPayload.b.needCycle = (nDays >= 90);
     
     while(prefs.nPercentUsage > 100)
     {
+      prefs.lastCycleDate = time(nullptr); // rest date for full cycle
       prefs.nCycles++; // Add 1 cycle for every 100% use
       prefs.nPercentUsage -= 100;
     }
