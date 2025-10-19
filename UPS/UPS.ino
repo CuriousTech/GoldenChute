@@ -659,7 +659,6 @@ void loop()
     // WiFi async connect stuff
     if(!bConfigDone)
     {
-      Serial.println("1");
       if( WiFi.smartConfigDone())
       {
         Serial.println("SmartConfig set");
