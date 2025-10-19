@@ -63,10 +63,11 @@ SOFTWARE.
 #define SCK_PIN GPIO_NUM_13
 #define LED     48
 #define SSR     12
+//#define USE_HID 1  // Uncomment for HID device
 #endif
 
 // Auto-enabled when building for ESP32-S3 and uses HID
-#if CONFIG_TINYUSB_HID_ENABLED
+#if CONFIG_TINYUSB_HID_ENABLED && USE_HID
 #include "HIDPowerDev.h"
 HIDPowerDevice Device;
 #endif
@@ -165,6 +166,7 @@ bool decodeSegments(upsData& udata);
 void calcPercent(void);
 void checkSerial(void);
 uint8_t battHealth(void);
+void calcMinMax(void);
 
 String dataJson()
 {
@@ -263,7 +265,7 @@ void jsonCallback(int16_t iName, int iValue, char *psValue)
       {
         static char data[] = "HIBR";
         wsb.binaryAll(data, 4);
-#if !CONFIG_TINYUSB_HID_ENABLED
+#if !(CONFIG_TINYUSB_HID_ENABLED && USE_HID)
         static uint8_t data2[] = {0xAB, 'H','I','B','R'};
         Serial.write(data2, 5);
 #endif
@@ -273,7 +275,7 @@ void jsonCallback(int16_t iName, int iValue, char *psValue)
       {
         static char data[] = "SHDN";
         wsb.binaryAll(data, 4);
-#if CONFIG_TINYUSB_HID_ENABLED
+#if CONFIG_TINYUSB_HID_ENABLED && USE_HID
         bRequestSD = true;
 #else
         static uint8_t data2[] = {0xAB, 'S','H','D','N'};
@@ -494,7 +496,7 @@ void setup()
 
   binPayload.b.noData = 1; // start out with a fail
 
-#if CONFIG_TINYUSB_HID_ENABLED
+#if CONFIG_TINYUSB_HID_ENABLED && USE_HID
   Device.begin();
 #endif
 }
@@ -545,7 +547,7 @@ void loop()
         wsb.binaryAll((uint8_t*)&binPayload, sizeof(binPayload));
       }
 
-#if !CONFIG_TINYUSB_HID_ENABLED
+#if !(CONFIG_TINYUSB_HID_ENABLED && USE_HID)
       if(bGMFormatSerial)
       {
         Serial.write((uint8_t*)&binPayload, sizeof(binPayload) );
@@ -613,13 +615,13 @@ void loop()
             wsb.binaryAll((uint8_t*)&binPayload, sizeof(binPayload));
           }
 
-#if CONFIG_TINYUSB_HID_ENABLED
+#if CONFIG_TINYUSB_HID_ENABLED && USE_HID
           PresentStatus ps;
       
           ps.w = 0;
       
           // just in case it's not installed properly
-          uint8_t percent = (binPayload.noData) ? 100 : binPayload.battPercent;
+          uint8_t percent = (binPayload.b.noData) ? 100 : binPayload.battPercent;
       
           ps.b.Charging = binPayload.b.charging;
           ps.b.ACPresent = binPayload.b.OnAC;
@@ -629,7 +631,7 @@ void loop()
           ps.b.BelowRemainingCapacityLimit = (percent <= 4);
           ps.b.ShutdownImminent = (percent <= 2);
           ps.b.ShutdownRequested = bRequestSD;
-          bRequestDS = false;
+          bRequestSD = false;
           Device.SetPresentStatus(ps.w, percent);
 #else
           if(bGMFormatSerial) // binary over serial
@@ -657,6 +659,7 @@ void loop()
     // WiFi async connect stuff
     if(!bConfigDone)
     {
+      Serial.println("1");
       if( WiFi.smartConfigDone())
       {
         Serial.println("SmartConfig set");
@@ -669,10 +672,11 @@ void loop()
 
     if(bConfigDone)
     {
-      if(WiFi.status() == WL_CONNECTED)
+      switch(WiFi.status())
       {
-        if(!bStarted)
-        {
+        case WL_CONNECTED:
+          if(bStarted)
+            break;
           Serial.println("WiFi Connected"); // first connect setup
           WiFi.mode(WIFI_STA);
           MDNS.begin( prefs.szName );
@@ -690,18 +694,23 @@ void loop()
           {
             prefs.lastCycleDate = time(nullptr); // set date of first use
           }
-        }
-      }
-      else if(WiFi.status() == WL_CONNECTION_LOST) // connection lost
-      {
-      }
-      else if(WiFi.status() == WL_CONNECT_FAILED) // failed to connect
-      {
-        Serial.println("Connect failed. Starting SmartConfig");
-        WiFi.mode(WIFI_AP_STA);
-        WiFi.beginSmartConfig();
-        bConfigDone = false;
-        bStarted = false;
+          break;
+        case WL_CONNECTION_LOST:
+          break;
+        case WL_CONNECT_FAILED: // failed to connect
+          Serial.println("Connect failed. Starting SmartConfig");
+          WiFi.mode(WIFI_AP_STA);
+          WiFi.beginSmartConfig();
+          bConfigDone = false;
+          bStarted = false;
+          break;
+        case WL_DISCONNECTED:
+          WiFi.begin(prefs.szSSID, prefs.szSSIDPassword);
+          Serial.print("reconnect:");
+          Serial.print(prefs.szSSID);
+          Serial.print(" ");
+          Serial.println(prefs.szSSIDPassword);
+          break;
       }
     }
   
@@ -873,7 +882,7 @@ void calcPercent()
 // Check for incoming serial data
 void checkSerial()
 {
-#if !CONFIG_TINYUSB_HID_ENABLED
+#if !(CONFIG_TINYUSB_HID_ENABLED && USE_HID)
   static uint8_t buffer[8];
   static uint8_t bufIdx = 0;
 
