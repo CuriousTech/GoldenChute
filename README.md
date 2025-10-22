@@ -50,7 +50,7 @@ COM Port (Note: using serial will cause the ESP32 to reset every time the app ex
 The radio buttons allow selecting either COM or websocket.  
 Percent to shut down: Active (red bars left of battery in the main display and tray icon) and Inactive (right red bars) depends on whether the monitor is in standby. The depth of discharge (D.O.D.) determines the impact on health. When inactive, it should shut down at 70% for best health. When active, more time can be allowed for manual shutdown. The % is just the bar levels, not actual percent (which could possibly be inaccurate). There is a 10 second delay when it reaches the desired %, then it will shut down or hibernate/hibrid-sleep if that is set up properly and doesn't fail, otherwise it will shut down.  
 Note: Hibrid-sleep can wake immediately by odd USB devices if not set up properly. It should be tested before use. It will also slowly drain the battery over time.  
-Skip seconds: 0 will add data to the chart every second (total 24 hours). 1 would be 48 hours, but miss every other second.  
+Skip seconds: 0 will add data to the chart every second (total 24 hours). 1 would be 48 hours, but records peak values of 2 seconds.  
 The web page also allows manual remote shutdown/hibernate. The password will need to be the same here as in Prefs.h  Test it once to esnure it works properly.  
 Alerts currently just cause the window to popup and show red text over the "Input" label, such as "Serial timeout/in use" or WebSocket disconnected"  
 Hide after start causes the window to hide 4 seconds after startup.  
