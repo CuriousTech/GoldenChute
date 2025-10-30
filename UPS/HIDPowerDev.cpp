@@ -255,13 +255,9 @@ uint16_t HIDPowerDevice::_onGetFeature(uint8_t report_id, uint8_t* buffer, uint1
       buffer[0] = 4;
       return 1;
 /*
-    case HID_PD_SERIAL:
-      break;
     case HID_PD_IOEMINFORMATION:
       break;
     case HID_PD_IPRODUCT:
-      break;
-    case HID_PD_MANUFACTURER:
       break;
     case HID_PD_MANUFACTUREDATE:
       break;
