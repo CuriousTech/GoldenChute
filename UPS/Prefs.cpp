@@ -1,17 +1,18 @@
 #include "Prefs.h"
 
-void Prefs::init()
+Prefs::Prefs()
 {
   uint8_t data[EESIZE];
   
-  pfs.begin("scale", false);
+  pfs.begin("ups", false);
   pfs.getBytes("settings", data, EESIZE );
   uint16_t *pw = (uint16_t*)data;
 
-  if(pw[1] == EESIZE) // just make sure size is correct
+  if(pw[0] == EESIZE) // just make sure size is correct
   {
-    pfs.getBytes("settings", this + offsetof(Prefs, size), EESIZE );
+    pfs.getBytes("settings", (uint8_t*)this + offsetof(Prefs, size), EESIZE );
   }
+  pfs.end();
 }
 
 void Prefs::update() // write the settings if changed
@@ -23,7 +24,9 @@ void Prefs::update() // write the settings if changed
   if(old_sum == sum)
     return; // Nothing has changed?
 
-  pfs.putBytes("settings", this + offsetof(Prefs, size), EESIZE );
+  pfs.begin("ups", false);
+  pfs.putBytes("settings", (uint8_t*)this + offsetof(Prefs, size), EESIZE );
+  pfs.end();
 }
 
 uint16_t Prefs::Fletcher16( uint8_t* data, int count)
