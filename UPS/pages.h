@@ -98,7 +98,7 @@ function hibernate()
 function confirmPwr()
 {
   if(confirm('Are you sure you want to turn the UPS off?'))
-    setVar('power',0)
+    setVar('power',0xAB12CF)
 }
 
 function draw(){
