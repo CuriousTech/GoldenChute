@@ -80,14 +80,15 @@ public:
     HID.begin();
   }
 
-  uint16_t _onGetDescriptor(uint8_t* buffer);
-  uint16_t _onGetFeature(uint8_t report_id, uint8_t* buffer, uint16_t len);
   void SetPresentStatus(uint16_t status, uint8_t cap);
 
 private:
-    uint8_t _PresentStatus[2];
-    uint8_t _RemainingCap = 100;
-    USBHID HID;
+  uint16_t _onGetDescriptor(uint8_t* buffer);
+  uint16_t _onGetFeature(uint8_t report_id, uint8_t* buffer, uint16_t len);
+
+  uint8_t _PresentStatus[2];
+  uint8_t _RemainingCap = 100;
+  USBHID HID;
 };
 
 #endif // HIDPWRDEV_H
