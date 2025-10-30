@@ -97,7 +97,9 @@ Prefs prefs;
 
 bool bConfigDone; // EspTouch config
 bool bStarted; // WiFi started
-bool bRequestSD = false;
+bool bRequestSD = false; // request PC shutdown
+uint32_t nLongPress = 0; // Long press the power button
+bool bPushSSR = false;
 
 bool bGMFormatSerial;
 uint32_t spiMS = 10000000;
@@ -186,7 +188,6 @@ String dataJson()
   js.Var("initdate", prefs.initialDate);
   js.Var("cycledate", prefs.lastCycleDate);
   js.Var("health", battHealth());
-
   return js.Close();
 }
 
@@ -216,6 +217,7 @@ const char *jsonList1[] = {
   "shutdown",
   "restart",
   "ppkwh",
+  "power",
   NULL
 };
 
@@ -288,6 +290,10 @@ void jsonCallback(int16_t iName, int iValue, char *psValue)
       break;
     case 4: // ppkwh
       prefs.ppkw = iValue;
+      break;
+    case 5: // power
+      nLongPress = 0xAB12CF; // rando num to make it safer
+      bPushSSR = true;
       break;
   }
 }
@@ -421,7 +427,6 @@ void setup()
   pinMode(DIN_PIN, INPUT);
   pinMode(SCK_PIN, INPUT);
   pinMode(SSR, OUTPUT);
-  prefs.init();
 
   WiFi.hostname(prefs.szName);
   WiFi.mode(WIFI_STA);
@@ -485,14 +490,26 @@ void setup()
   gpio_isr_handler_add(CS_PIN, CS_ISR, NULL);
   gpio_intr_enable(CS_PIN);
 
-  // Set init date manually (only needed once)
-/*
-  tm initDate = {0};
-  initDate.tm_year = 125; // 2025
-  initDate.tm_mon = 1; // Jan
-  initDate.tm_mday = 1; // day of month
-  prefs.initialDate = mktime(&initDate);
-*/
+  // Adjust init date and cycles manually (firmware updates erase Preferences)
+  if(prefs.initialDate == 0)
+  {
+    tm initDate = {0};
+    // set first used date
+    initDate.tm_year = 125; // 2025
+    initDate.tm_mon = 5; // May
+    initDate.tm_mday = 1; // day of month
+    prefs.initialDate = mktime(&initDate);
+  
+    // set last cycle date
+    initDate.tm_year = 125; // 2025
+    initDate.tm_mon = 6; // Jun
+    initDate.tm_mday = 1; // day of month (TZ shifts it back)
+    prefs.lastCycleDate = mktime(&initDate);
+  
+    prefs.nCycles = 1; // if you know how many cycles so far
+  //  prefs.nPercentUsage = 0;
+    prefs.update();
+  }
 
   binPayload.b.noData = 1; // start out with a fail
 
@@ -509,15 +526,16 @@ void loop()
   ArduinoOTA.handle();
 
   static uint32_t lastMSbtn;
-  static bool bPushSSR;
   static uint32_t lastMS;
 
   // button press simulator
-  if(lastMSbtn) // release button SSR after 500ms
+  if(lastMSbtn)
   {
-    if(millis() - lastMSbtn > 500)
+    uint32_t ms = (nLongPress == 0xAB12CF) ? 5100:500;
+    if(millis() - lastMSbtn > ms)
     {
       digitalWrite(SSR, LOW); // release button after 500ms
+      nLongPress = 0;
     }
   }
   if(bPushSSR) // press button, start ms timer
@@ -527,7 +545,7 @@ void loop()
     lastMSbtn = millis();
   }
 
-  // Last UPS LCD segment captured
+  // Last UPS LCD segment bits captured
   if(bReady)
   {
     bReady = false;
@@ -798,8 +816,9 @@ void levelChange()
 
 uint8_t battHealth()
 {
-  uint32_t ageDays = (time(nullptr) - prefs.initialDate) / 3600;
-  uint8_t percDrop = (ageDays / 182); // about 2% per year
+  uint32_t ageDays = (time(nullptr) - prefs.initialDate) / (3600*24);
+  uint16_t percDrop = (ageDays / 182); // about 2% per year
+
   percDrop += prefs.nCycles / 50; // 1% per 50 cycles
   return 98 - percDrop; // starting at 98%
 }
