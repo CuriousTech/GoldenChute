@@ -27,6 +27,7 @@ body{width:490px;display:block;text-align:right;font-family: Arial, Helvetica, s
 <script type="text/javascript">
 a=document.all
 noData=0
+bPwr=0
 errorTxt=[
   "",
   "Low Voltage", // 1
@@ -42,7 +43,7 @@ errorTxt=[
 
 function openSocket(){
   ws=new WebSocket("ws://"+window.location.host+"/ws")
-//  ws=new WebSocket("ws://192.168.31.230/ws")
+//  ws=new WebSocket("ws://192.168.31.155/ws")
   date = new Date()
   ws.onopen=function(evt){}
   ws.onclose=function(evt){alert("Connection closed");}
@@ -58,7 +59,7 @@ function openSocket(){
       days=(d.t-d.cycledate)/3600
       a.cycle.innerHTML=(days>=90)?'<span style=\"color: red;\">':''
       a.cycle.innerHTML+=dtc.getFullYear()+'/'+(dtc.getMonth()+1)+'/'+dtc.getDate()
-      a.cycles.innerHTML=d.cycles
+      a.cycles.innerHTML=d.cycles+' + '+d.percuse+'%'
       a.health.innerHTML=d.health+'%'
       noData=+d.nodata
       a.ppkwh.value=ppkwh=+d.ppkwh/100
@@ -92,6 +93,12 @@ function shutdown()
 function hibernate()
 {
   setVar('hibernate',0)
+}
+
+function confirmPwr()
+{
+  if(confirm('Are you sure you want to turn the UPS off?'))
+    setVar('power',0)
 }
 
 function draw(){
@@ -240,6 +247,7 @@ function draw_scale(arr,w,h,o,hi,cur)
     tot+=arr[i]
   }
   if(cur>max) max=cur
+  if(min==2000) min=cur
   ctx.textAlign="center"
   w -= 5
   for(i=0;i<arr.length;i++)
@@ -305,8 +313,8 @@ openSocket()
 <tr><td><div id='topbar'></div></td></tr>
 
 <tr><td>
-  <input type="button" value="SHUTDOWN" onClick="{shutdown()}"> <input type="button" value="HIBERNATE" onClick="{hibernate()}"> 
-  <input type="button" value="RST DSP" onClick="{setVar('restart',0)}"></td></tr>
+  <input type="button" value="SHUTDOWN" onClick="{shutdown()}"> <input type="button" value="HIBERNATE" onClick="{hibernate()}"></td></tr> 
+  <tr><td><input type="button" value="RESET DISP" onClick="{setVar('restart',0)}"><input type="button" value="POWER OFF" onClick="{confirmPwr()}"></td></tr>
 </table>
 
 <table width=278 >
