@@ -292,7 +292,7 @@ void jsonCallback(int16_t iName, int iValue, char *psValue)
       prefs.ppkw = iValue;
       break;
     case 5: // power
-      nLongPress = 0xAB12CF; // rando num to make it safer
+      nLongPress = iValue; // rando num to make it safer
       bPushSSR = true;
       break;
   }
