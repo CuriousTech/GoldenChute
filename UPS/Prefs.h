@@ -9,8 +9,7 @@
 class Prefs
 {
 public:
-  Prefs(){};
-  void init(void);
+  Prefs();
   void update(void);
 
   uint16_t  size = EESIZE;          // if size changes, use defauls
@@ -23,7 +22,7 @@ public:
   uint32_t  initialDate = 0; // first use date
   uint16_t  nPercentUsage = 0;
   uint16_t  nCycles = 0;
-  uint32_t  lastCycleDate = 0; // last cycle of 70% - should be cycled every 3 months
+  uint32_t  lastCycleDate = 0; // last cycle of 100% - should be cycled every 3 months
   uint8_t   res[16]; // change the length to force overwrite
   uint8_t   end;
 private:
