@@ -188,6 +188,7 @@ String dataJson()
   js.Var("initdate", prefs.initialDate);
   js.Var("cycledate", prefs.lastCycleDate);
   js.Var("health", battHealth());
+  js.Var("nc",binPayload.b.needCycle);
   return js.Close();
 }
 
@@ -843,17 +844,17 @@ void calcPercent()
     // TODO: add an exponent - 100% = 2x 50% = 5x 30% ish
     prefs.nPercentUsage += nPercUsed;
 
-    int16_t nDays = (time(nullptr) - prefs.lastCycleDate) / 3600;
-    binPayload.b.needCycle = (nDays >= 90);
-    
     while(prefs.nPercentUsage > 100)
     {
-      prefs.lastCycleDate = time(nullptr); // rest date for full cycle
+      prefs.lastCycleDate = time(nullptr); // reset date for full cycle
       prefs.nCycles++; // Add 1 cycle for every 100% use
       prefs.nPercentUsage -= 100;
     }
     prefs.update();
   }
+
+  int16_t nDays = (time(nullptr) - prefs.lastCycleDate) / (3600*24);
+  binPayload.b.needCycle = (nDays >= 90);
 
   if (binPayload.b.OnUPS)
   {
