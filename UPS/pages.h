@@ -42,7 +42,7 @@ errorTxt=[
 ]
 
 function openSocket(){
-  ws=new WebSocket("ws://"+window.location.host+"/ws")
+ ws=new WebSocket("ws://"+window.location.host+"/ws")
 //  ws=new WebSocket("ws://192.168.31.155/ws")
   date = new Date()
   ws.onopen=function(evt){}
@@ -56,10 +56,8 @@ function openSocket(){
       dt=new Date(d.t*1000)
       a.topbar.innerHTML=((+d.connected)?'PC Connected ':'PC Disonnected')+'&nbsp; '+dt.toLocaleTimeString()+' &nbsp;'+d.rssi+'dB'
       dtc=new Date(d.cycledate*1000)
-      days=(d.t-d.cycledate)/3600
-      a.cycle.innerHTML=(days>=90)?'<span style=\"color: red;\">':''
-      a.cycle.innerHTML+=dtc.getFullYear()+'/'+(dtc.getMonth()+1)+'/'+dtc.getDate()
-      a.cycles.innerHTML=d.cycles+' + '+d.percuse+'%'
+      a.cycle.innerHTML=((+d.nc)?'<span style=\"color: red;\">':'')+dtc.getFullYear()+'/'+(dtc.getMonth()+1)+'/'+dtc.getDate()
+      a.cycles.innerHTML=d.cycles+' &nbsp; '+d.percuse+'% to next'
       a.health.innerHTML=d.health+'%'
       noData=+d.nodata
       a.ppkwh.value=ppkwh=+d.ppkwh/100
@@ -98,7 +96,7 @@ function hibernate()
 function confirmPwr()
 {
   if(confirm('Are you sure you want to turn the UPS off?'))
-    setVar('power',0xAB12CF)
+    setVar('power',0)
 }
 
 function draw(){
@@ -135,41 +133,41 @@ function draw(){
   c.font='bold 10pt sans-serif'
   c.fillStyle='rgb(255,30,30)'
   if(+upsState.UPS)
-    c.fillText("UPS", 260, 10)
+    c.fillText("UPS", 268, 10)
   if(+upsState.AC)
     c.fillText("AC", 80, 10)
 
   c.font='10pt sans-serif'
   c.strokeStyle=c.fillStyle='rgb(210,255,255)'
   c.fillText("Input", 48, 10)
-  c.fillText(upsState.battPercent+'%', 148, 10)
-  c.fillText("Output", 220, 10)
+  c.fillText(upsState.battPercent+'%', 156, 10)
+  c.fillText("Output", 230, 10)
 
   c.font='italic 20pt sans-serif'
   if(upsState.voltsIn)
-    c.fillText(upsState.voltsIn+'v', 84, 40)
-  c.fillText(upsState.voltsOut+'v', 240, 40)
-  c.fillText(upsState.wattsIn+'w', 84, 76)
-  c.fillText(upsState.wattsOut+'w', 240, 76)
+    c.fillText(upsState.voltsIn+'v', 84, 44)
+  c.fillText(upsState.voltsOut+'v', 256, 44)
+  c.fillText(upsState.wattsIn+'w', 84, 78)
+  c.fillText(upsState.wattsOut+'w', 256, 78)
 
   c.fillStyle=c.strokeStyle='rgb(0,120,255)'
-  c.roundRect(106,24,48,66,3)
+  c.roundRect(114,24,48,66,3)
   c.stroke()
   y = 76
   for(i = 0; i < 5; i++)
   {
     if(i >= upsState.BATT)
-      c.strokeRect(110+1, y+1, 40-2, 10-2)
+      c.strokeRect(118+1, y+1, 40-2, 10-2)
     else
-      c.fillRect(110, y, 40, 10)
+      c.fillRect(118, y, 40, 10)
     y -= 12
   }
   c.strokeStyle='rgb(210,255,255)'
   c.beginPath()
   c.moveTo(18,20)
   c.lineTo(90,20)
-  c.moveTo(178,20)
-  c.lineTo(246,20)
+  c.moveTo(188,20)
+  c.lineTo(268,20)
   c.stroke()
 }
 
@@ -320,7 +318,7 @@ openSocket()
 <table width=278 >
 <tr align="center"><td>
 <div id="wrapper">
-<canvas id="chart" width="270" height="100"></canvas>
+<canvas id="chart" width="270" height="95"></canvas>
 <canvas id="bars" width="270" height="120"></canvas>
 <div id="popup"><canvas id="tip" width=50 height=54></canvas></div>
 </div>
