@@ -497,18 +497,20 @@ void setup()
     tm initDate = {0};
     // set first used date
     initDate.tm_year = 125; // 2025
-    initDate.tm_mon = 5; // May
+    initDate.tm_mon = 5; // June
     initDate.tm_mday = 1; // day of month
+    initDate.tm_hour = 12;
     prefs.initialDate = mktime(&initDate);
   
     // set last cycle date
     initDate.tm_year = 125; // 2025
-    initDate.tm_mon = 6; // Jun
+    initDate.tm_mon = 6; // July
     initDate.tm_mday = 1; // day of month (TZ shifts it back)
+    initDate.tm_hour = 12;
     prefs.lastCycleDate = mktime(&initDate);
   
     prefs.nCycles = 1; // if you know how many cycles so far
-  //  prefs.nPercentUsage = 0;
+//    prefs.nPercentUsage = 0;
     prefs.update();
   }
 
@@ -566,7 +568,25 @@ void loop()
         wsb.binaryAll((uint8_t*)&binPayload, sizeof(binPayload));
       }
 
-#if !(CONFIG_TINYUSB_HID_ENABLED && USE_HID)
+#if CONFIG_TINYUSB_HID_ENABLED && USE_HID
+      PresentStatus ps;
+  
+      ps.w = 0;
+  
+      // just in case it's not installed properly
+      uint8_t percent = (binPayload.b.noData) ? 100 : binPayload.battPercent;
+  
+      ps.b.Charging = binPayload.b.charging;
+      ps.b.ACPresent = binPayload.b.OnAC;
+      ps.b.Discharging = binPayload.b.OnUPS;
+      ps.b.BatteryPresent = 1;
+      ps.b.FullyCharged = (binPayload.b.charging == 0 && binPayload.b.OnAC == 1);
+      ps.b.BelowRemainingCapacityLimit = (percent <= 4);
+      ps.b.ShutdownImminent = (percent <= 2);
+      ps.b.ShutdownRequested = bRequestSD;
+      bRequestSD = false;
+      Device.SetPresentStatus(ps.w, percent);
+#else
       if(bGMFormatSerial)
       {
         Serial.write((uint8_t*)&binPayload, sizeof(binPayload) );
@@ -634,25 +654,7 @@ void loop()
             wsb.binaryAll((uint8_t*)&binPayload, sizeof(binPayload));
           }
 
-#if CONFIG_TINYUSB_HID_ENABLED && USE_HID
-          PresentStatus ps;
-      
-          ps.w = 0;
-      
-          // just in case it's not installed properly
-          uint8_t percent = (binPayload.b.noData) ? 100 : binPayload.battPercent;
-      
-          ps.b.Charging = binPayload.b.charging;
-          ps.b.ACPresent = binPayload.b.OnAC;
-          ps.b.Discharging = binPayload.b.OnUPS;
-          ps.b.BatteryPresent = 1;
-          ps.b.FullyCharged = (binPayload.b.charging == 0 && binPayload.b.OnAC == 1);
-          ps.b.BelowRemainingCapacityLimit = (percent <= 4);
-          ps.b.ShutdownImminent = (percent <= 2);
-          ps.b.ShutdownRequested = bRequestSD;
-          bRequestSD = false;
-          Device.SetPresentStatus(ps.w, percent);
-#else
+#if !(CONFIG_TINYUSB_HID_ENABLED && USE_HID)
           if(bGMFormatSerial) // binary over serial
           {
             Serial.write((uint8_t*)&binPayload, sizeof(binPayload) );
