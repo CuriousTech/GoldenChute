@@ -57,7 +57,7 @@ function openSocket(){
       a.topbar.innerHTML=((+d.connected)?'PC Connected ':'PC Disonnected')+'&nbsp; '+dt.toLocaleTimeString()+' &nbsp;'+d.rssi+'dB'
       dtc=new Date(d.cycledate*1000)
       a.cycle.innerHTML=((+d.nc)?'<span style=\"color: red;\">':'')+dtc.getFullYear()+'/'+(dtc.getMonth()+1)+'/'+dtc.getDate()
-      a.cycles.innerHTML=d.cycles+' &nbsp; '+d.percuse+'% to next'
+      a.cycles.innerHTML=d.cycles+' &nbsp; +'+d.percuse+'%'
       a.health.innerHTML=d.health+'%'
       noData=+d.nodata
       a.ppkwh.value=ppkwh=+d.ppkwh/100
