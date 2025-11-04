@@ -37,9 +37,6 @@ Compiling the code should be easy. Most information is in UPS.ino, like where to
   
 **Windows app:**  
 Extract the exe and move it to somewhere like C:\Goldenamte.  
-Right click on the exe, and select "Show more Options" then select "Create shortcut" then move the shortcut to:  
-  C:\Users\\[Your Account]\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup  
-Double-click to run the app.  
 Clicking on the top-right corner of the app will hide it.  
 Right-click for context menu (settings, quit, clear log/chart)  
 The outage log (top right area, hidden when small) is blank until an entry is created.  Entries are comma delimited lines saved in a file in the local exe folder, named ups_log.txt (or ups_log1.txt for the 2nd instance...).  
