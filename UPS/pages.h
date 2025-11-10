@@ -100,7 +100,7 @@ function confirmPwr()
 }
 
 function draw(){
-  graph = $('#chart')
+  graph = $('#meter')
   c=graph[0].getContext('2d')
 
   c.fillStyle='black'
@@ -142,18 +142,21 @@ function draw(){
   c.fillText("Input", 48, 10)
   c.fillText(upsState.battPercent+'%', 156, 10)
   c.fillText("Output", 230, 10)
+  c.textAlign="center"
+  c.fillText(timeRem(), 138, 27)
+  c.textAlign="right"
 
-  c.font='italic 20pt sans-serif'
+  c.font='italic 22pt sans-serif'
   if(upsState.voltsIn)
-    c.fillText(upsState.voltsIn+'v', 84, 44)
-  c.fillText(upsState.voltsOut+'v', 256, 44)
-  c.fillText(upsState.wattsIn+'w', 84, 78)
-  c.fillText(upsState.wattsOut+'w', 256, 78)
+    c.fillText(upsState.voltsIn+'v', 84, 46)
+  c.fillText(upsState.voltsOut+'v', 256, 46)
+  c.fillText(upsState.wattsIn+'w', 84, 86)
+  c.fillText(upsState.wattsOut+'w', 256, 86)
 
   c.fillStyle=c.strokeStyle='rgb(0,120,255)'
-  c.roundRect(114,24,48,66,3)
+  c.roundRect(114,36,48,66,3)
   c.stroke()
-  y = 76
+  y = 88
   for(i = 0; i < 5; i++)
   {
     if(i >= upsState.BATT)
@@ -169,6 +172,21 @@ function draw(){
   c.moveTo(188,20)
   c.lineTo(268,20)
   c.stroke()
+}
+
+function timeRem()
+{
+  secs = +d.secsrem
+  h = (secs / (60*60)).toFixed()
+  m = (secs % (60*60)).toFixed()
+  m = (m / 60).toFixed()
+  if(m<10 && h) m='0'+m
+  secs = (secs%60).toFixed()
+  if(secs<10) secs='0'+secs
+  str = ''
+  if(h) str=h+':'
+  str+=m+':'+secs
+  return str
 }
 
 function drawstuff(){
@@ -318,7 +336,7 @@ openSocket()
 <table width=278 >
 <tr align="center"><td>
 <div id="wrapper">
-<canvas id="chart" width="270" height="95"></canvas>
+<canvas id="meter" width="270" height="105"></canvas>
 <canvas id="bars" width="270" height="120"></canvas>
 <div id="popup"><canvas id="tip" width=50 height=54></canvas></div>
 </div>
