@@ -116,6 +116,11 @@ static const uint8_t report_descriptor[] PROGMEM = {
     0x81, 0xA3, //     INPUT (Constant, Variable, Absolute, No Wrap, Linear, No Preferred, No Null Position, Bitfield)
     0x09, 0x30, //     USAGE (Voltage)
     0xB1, 0xA3, //     FEATURE (Constant, Variable, Absolute, No Wrap, Linear, No Preferred, No Null Position, Volatile, Bitfield)
+    0x85, HID_PD_CYCLECOUNT, //     REPORT_ID (1D)
+    0x09, 0x6B, //     USAGE (CycleCount)  
+    0x81, 0xA3, //     INPUT (Constant, Variable, Absolute, No Wrap, Linear, No Preferred, No Null Position, Bitfield)
+    0x09, 0x6B, //     USAGE (CycleCount)
+    0xB1, 0xA3, //     FEATURE (Constant, Variable, Absolute, No Wrap, Linear, No Preferred, No Null Position, Volatile, Bitfield)  
     0x85, HID_PD_AUDIBLEALARMCTRL, //     REPORT_ID (20)
     0x09, 0x5A, //     USAGE (AudibleAlarmControl)
     0x75, 0x08, //     REPORT_SIZE (8)
@@ -226,7 +231,7 @@ uint16_t HIDPowerDevice::_onGetFeature(uint8_t report_id, uint8_t* buffer, uint1
       buffer[0] = 1;
       return 1;
     case HID_PD_CAPACITYMODE:
-      buffer[0] = 2;
+      buffer[0] = 2; // percent mode
       return 1;
     case HID_PD_FULLCHRGECAPACITY:
       buffer[0] = 100;
@@ -238,42 +243,95 @@ uint16_t HIDPowerDevice::_onGetFeature(uint8_t report_id, uint8_t* buffer, uint1
       buffer[0] = 100;
       return 1;
     case HID_PD_CPCTYGRANULARITY1:
-      buffer[0] = 1;
+      buffer[0] = 1; // 1% granularity
       return 1;
     case HID_PD_CPCTYGRANULARITY2:
       buffer[0] = 1;
       return 1;
     case HID_PD_REMNCAPACITYLIMIT:
-      buffer[0] = 4;
+      buffer[0] = 5;
       return 1;
     case HID_PD_WARNCAPACITYLIMIT:
       buffer[0] = 10;
       return 1;
+    case HID_PD_CONFIGVOLTAGE:
+      {
+        uint16_t nConfigVoltage = 1380;
+        buffer[0] = (nConfigVoltage & 0xFF);
+        buffer[1] = (nConfigVoltage >> 8);
+      }
+      return 2;
     case HID_PD_VOLTAGE:
-      break;
+      buffer[0] = (_nVolts & 0xFF);
+      buffer[1] = (_nVolts >> 8);
+      return 2;
     case HID_PD_IDEVICECHEMISTRY:
-      buffer[0] = 4;
+      buffer[0] = IDEVICECHEMISTRY;
       return 1;
+    case HID_PD_MANUFACTUREDATE:
+      {
+        uint16_t *pDate = (uint16_t*)&_mfgDate;
+        buffer[0] = (*pDate & 0xFF);
+        buffer[1] = (*pDate >> 8);
+      }
+      return 2;
+    case HID_PD_CYCLECOUNT:
+      buffer[0] = (_nCycleCount & 0xFF);
+      buffer[1] = (_nCycleCount >> 8);
+      return 2;
+
+    case HID_PD_AVERAGETIME2FULL:
+      buffer[0] = (_nTimeToFull & 0xFF);
+      buffer[1] = (_nTimeToFull >> 8);
+      return 2;
+    case HID_PD_AVERAGETIME2EMPTY:
+      buffer[0] = (_nTimeToEmpty & 0xFF);
+      buffer[1] = (_nTimeToEmpty >> 8);
+      return 2;
+    case HID_PD_RUNTIMETOEMPTY:
+      buffer[0] = (_nTimeRemain & 0xFF);
+      buffer[1] = (_nTimeRemain >> 8);
+      return 2;
 /*
+    case HID_PD_DELAYBE4SHUTDOWN:
+      return 1;
+    case HID_PD_DELAYBE4REBOOT:
+      return 1;
     case HID_PD_IOEMINFORMATION:
       break;
     case HID_PD_IPRODUCT:
       break;
-    case HID_PD_MANUFACTUREDATE:
-      break;
     case HID_PD_RUNTIMETOEMPTY:
       break;
-      */
+*/
   }
 
   return 0;
 }
 
-void HIDPowerDevice::SetPresentStatus(uint16_t status, uint8_t cap)
+void HIDPowerDevice::SetPresentStatus(uint16_t status, uint8_t cap, uint16_t v)
 {
   _PresentStatus[0] = (uint8_t)(status & 0xFF);
   _PresentStatus[1] = (uint8_t)(status >> 8);
   _RemainingCap = cap;
+  _nVolts = v * 10; // centivolts
+}
+
+void HIDPowerDevice::setMfgDate(const manufactDate& mfd)
+{
+  _mfgDate = mfd;
+}
+
+void HIDPowerDevice::setTimes(uint16_t nFullTime, uint16_t nSecondsRemaining, uint16_t nSecsToCharge)
+{
+  _nTimeToEmpty = nFullTime;
+  _nTimeRemain = nSecondsRemaining;
+  _nTimeToFull = nSecsToCharge;
+}
+
+void HIDPowerDevice::setCycleCnt(uint16_t nCyc)
+{
+  _nCycleCount = nCyc;
 }
 
 uint16_t HIDPowerDevice::_onGetDescriptor(uint8_t* buffer)
