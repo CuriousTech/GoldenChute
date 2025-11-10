@@ -111,12 +111,11 @@ uint8_t nBarPercent;
 uint32_t nWattsAccum;
 uint32_t nWattsPerBar;
 
+uint32_t g_nSecondsRemaining;
 uint32_t nWattHrArr[24];
 uint32_t nWattsAccumHr;
 uint16_t nWhCnt;
 uint16_t nWattMin[24], nWattMax[24];
-
-uint8_t nDrainStartPercent;
 
 struct flagBits{
   uint16_t OnUPS : 1;
@@ -209,6 +208,7 @@ String statusJson()
   js.Var("battPercent", binPayload.battPercent );
   js.Var("error", binPayload.b.error);
   js.Var("nodata", binPayload.b.noData);
+  js.Var("secsrem", g_nSecondsRemaining);
   return js.Close();
 }
 
@@ -496,27 +496,32 @@ void setup()
   {
     tm initDate = {0};
     // set first used date
-    initDate.tm_year = 125; // 2025
+    initDate.tm_year = 2025 - 1900; // 2025
     initDate.tm_mon = 5; // June
     initDate.tm_mday = 1; // day of month
-    initDate.tm_hour = 12;
+    initDate.tm_hour = 12; // offset for most TZ
     prefs.initialDate = mktime(&initDate);
   
     // set last cycle date
-    initDate.tm_year = 125; // 2025
+    initDate.tm_year = 2025 - 1900; // 2025
     initDate.tm_mon = 6; // July
-    initDate.tm_mday = 1; // day of month (TZ shifts it back)
-    initDate.tm_hour = 12;
+    initDate.tm_mday = 1; // day of month
     prefs.lastCycleDate = mktime(&initDate);
   
     prefs.nCycles = 1; // if you know how many cycles so far
-//    prefs.nPercentUsage = 0;
+    prefs.nPercentUsage = 0;  // copy these last 3 values from web page to preserve them before flashing
     prefs.update();
   }
 
   binPayload.b.noData = 1; // start out with a fail
 
 #if CONFIG_TINYUSB_HID_ENABLED && USE_HID
+  const manufactDate mfd ={
+    .day = 1,
+    .month = 5,
+    .year = 2025 - 1980
+  };
+  Device.setMfgDate(mfd); // Manufactured date: June 1, 2025
   Device.begin();
 #endif
 }
@@ -558,6 +563,7 @@ void loop()
     {
       sentMS = millis();
       calcPercent();
+      calcTimeRemaining();
       calcMinMax();
       checksumData(); // prepare it for transmit
 
@@ -585,7 +591,7 @@ void loop()
       ps.b.ShutdownImminent = (percent <= 2);
       ps.b.ShutdownRequested = bRequestSD;
       bRequestSD = false;
-      Device.SetPresentStatus(ps.w, percent);
+      Device.SetPresentStatus(ps.w, percent, binPayload.VoltsOut);
 #else
       if(bGMFormatSerial)
       {
@@ -760,7 +766,10 @@ void loop()
         tzset();
       }
 
-      prefs.update(); // check for any prefs changes and update
+      prefs.update(); // check for any prefs changes and save
+#if CONFIG_TINYUSB_HID_ENABLED && USE_HID
+      Device.setCycleCnt(prefs.nCycles);
+#endif
     }
 
     // wrong password reject counter
@@ -769,6 +778,49 @@ void loop()
   }
 
   checkSerial();
+}
+
+void calcTimeRemaining()
+{
+  static uint8_t nIdx = 0;
+  static uint8_t nWattArrLen = 0;
+  static uint16_t wattArr[16];
+
+  wattArr[nIdx++] = binPayload.WattsIn;
+  nIdx &= 15;
+  if (nWattArrLen < 16)
+    nWattArrLen++;
+
+  uint16_t wTot = 0;
+  for (uint8_t i = 0; i < nWattArrLen; i++)
+    wTot += wattArr[i];
+
+  uint16_t nWattAvg = wTot / nWattArrLen;
+
+  static uint8_t perc = 0;
+  static uint8_t nCnt = 0;
+  bool bCharging = (binPayload.b.OnUPS || (binPayload.WattsIn - binPayload.WattsOut > 1));
+
+  if (binPayload.battPercent != perc || (!bCharging && ++nCnt >= 4))
+  {
+    perc = binPayload.battPercent;
+    if (perc == 100) perc = 99;
+
+    nCnt = 0;
+
+    g_nSecondsRemaining = binPayload.Capacity * binPayload.Health * perc / nWattAvg / 3;
+
+#if CONFIG_TINYUSB_HID_ENABLED && USE_HID
+    uint32_t nSecsTotal = binPayload.Capacity * binPayload.Health * 100 / nWattAvg / 3;
+    uint32_t nSecsToCharge = binPayload.Capacity * binPayload.Health * 100 / 20 / 3; // Todo: Assuming 20W. Save peak (wattsIn - wattsOut) at some point
+
+    if(nSecsToCharge > 0xFFFF)
+      nSecsToCharge = 0xFFFF;
+
+    Device.setTimes(nSecsTotal, g_nSecondsRemaining, nSecsToCharge);
+#endif
+
+  }
 }
 
 // set mix/max every reading
@@ -823,7 +875,7 @@ uint8_t battHealth()
   uint16_t percDrop = (ageDays / 182); // about 2% per year
 
   percDrop += prefs.nCycles / 50; // 1% per 50 cycles
-  return 98 - percDrop; // starting at 98%
+  return 99 - percDrop; // starting at 99%
 }
 
 void calcPercent()
@@ -831,6 +883,7 @@ void calcPercent()
   static uint8_t lvl = 0;
   static uint8_t cnt = 0;
   static bool lastOnUPS;
+  static uint8_t nDrainStartPercent = 0;
 
   if (binPayload.b.battLevel != lvl || (binPayload.b.OnUPS && !lastOnUPS) ) // Switching to backup triggers level change to start accumulator
   {
@@ -868,7 +921,7 @@ void calcPercent()
   {
     if(cnt < 10) cnt++; // needs 2-3 seconds to start charge after switching to AC
 
-    if(binPayload.WattsIn - binPayload.WattsOut <= 1 && binPayload.b.battLevel == 7) // not charging + level 7 = full
+    if(binPayload.WattsIn - binPayload.WattsOut <= 2 && binPayload.b.battLevel == 7) // not charging + level 7 = full
     {
       if(cnt > 2)
       {
