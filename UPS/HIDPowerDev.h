@@ -39,9 +39,11 @@
 #define HID_PD_AVERAGETIME2FULL      0x1A
 #define HID_PD_AVERAGECURRENT        0x1B
 #define HID_PD_AVERAGETIME2EMPTY     0x1C
+#define HID_PD_CYCLECOUNT            0x1D
 
-#define HID_PD_IDEVICECHEMISTRY      0x1F // 31 Feature
-#define HID_PD_IOEMINFORMATION       0x20 // 32 Feature
+#define HID_PD_IDEVICECHEMISTRY      0x1F // 31 FEATURE
+#define HID_PD_IOEMINFORMATION       0x20 // 32 FEATURE
+#define HID_PD_PRIMARYBATTERY        0x2E //    FEATURE
 
 struct PresentStatusBits
 {
@@ -60,14 +62,21 @@ struct PresentStatusBits
   uint8_t ShutdownImminent : 1;           // bit 0x0B
   uint8_t CommunicationLost : 1;          // bit 0x0C
   uint8_t Overload : 1;                   // bit 0x0D
-  uint8_t unused1 : 1;
-  uint8_t unused2 : 1;
+  uint8_t PrimaryBattery : 1;
+  uint8_t unused : 1;
 };
 
 union PresentStatus
 {
     uint16_t w;
     PresentStatusBits b;
+};
+
+struct manufactDate
+{
+  uint16_t day : 5; // 1 = Jan
+  uint16_t month : 4; // 1 = 1st dom
+  uint16_t year : 7; // 2025 - 1980
 };
 
 class HIDPowerDevice: public USBHIDDevice
@@ -80,7 +89,10 @@ public:
     HID.begin();
   }
 
-  void SetPresentStatus(uint16_t status, uint8_t cap);
+  void SetPresentStatus(uint16_t status, uint8_t cap, uint16_t v);
+  void setMfgDate(const manufactDate& mfd);
+  void setCycleCnt(uint16_t nCyc);
+  void setTimes(uint16_t nFullTime, uint16_t nSecondsRemaining, uint16_t nSecsToCharge);
 
 private:
   uint16_t _onGetDescriptor(uint8_t* buffer);
@@ -88,6 +100,12 @@ private:
 
   uint8_t _PresentStatus[2];
   uint8_t _RemainingCap = 100;
+  uint16_t _nCycleCount = 1;
+  uint16_t _nVolts;
+  uint16_t _nTimeToFull = 60*60;
+  uint16_t _nTimeToEmpty = 60*60;
+  uint16_t _nTimeRemain = 60*60;
+  manufactDate _mfgDate;
   USBHID HID;
 };
 
