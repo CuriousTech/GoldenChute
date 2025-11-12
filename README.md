@@ -50,4 +50,5 @@ Note: Hibrid-sleep can wake immediately by odd USB devices if not set up properl
 Skip seconds: 0 will add data to the chart every second (total 24 hours). 1 would be 48 hours, but records peak values of 2 seconds.  
 The web page also allows manual remote shutdown/hibernate. The password will need to be the same here as in Prefs.h  Test it once to esnure it works properly.  
 Alerts currently just cause the window to popup and show red text over the "Input" label, such as "Serial timeout/in use" or WebSocket disconnected"  
+Power off after [30] seconds: Will turn the UPS power off (cutting power to everything on it) the delayed time (15 secs to 30 mins) after the PC begins shutdown/hibernate.  
 Hide after start causes the window to hide 4 seconds after startup.  
