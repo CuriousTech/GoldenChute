@@ -104,6 +104,7 @@ bool bPushSSR = false;
 bool bGMFormatSerial;
 uint32_t spiMS = 10000000;
 bool bNeedRestart; // display may need fix after switching from battery to AC
+uint8_t nShutoffDelay;
 
 // percent calculator
 uint8_t nLevelPercent;
@@ -293,8 +294,10 @@ void jsonCallback(int16_t iName, int iValue, char *psValue)
       prefs.ppkw = iValue;
       break;
     case 5: // power
-      nLongPress = iValue; // rando num to make it safer
-      bPushSSR = true;
+      nLongPress = iValue >> 16; // rando num to make it safer
+      nShutoffDelay = nLongPress & 0xFFFF;
+      if(nShutoffDelay == 0)
+        bPushSSR = true;
       break;
   }
 }
@@ -369,6 +372,13 @@ void onBinEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEvent
               binData[1] = nWattsAccumHr / 3621; // current this hour
               memcpy( (uint8_t*)&binData[2], &nWattHrArr, sizeof(nWattHrArr));
               client->binary((uint8_t*)&binData, sizeof(binData));
+            }
+            break;
+          case 0xAB: // shutoff delay
+            if(data[1] == 0xC2)
+            {
+              nLongPress = (data[0] << 8) || data[1];
+              nShutoffDelay = (buffer[2] << 8) | buffer[3];
             }
             break;
         }
@@ -539,7 +549,7 @@ void loop()
   // button press simulator
   if(lastMSbtn)
   {
-    uint32_t ms = (nLongPress == 0xAB12CF) ? 5100:500;
+    uint32_t ms = (nLongPress == 0xABC2) ? 5100:500;
     if(millis() - lastMSbtn > ms)
     {
       digitalWrite(SSR, LOW); // release button after 500ms
@@ -589,6 +599,7 @@ void loop()
       ps.b.FullyCharged = (binPayload.b.charging == 0 && binPayload.b.OnAC == 1);
       ps.b.BelowRemainingCapacityLimit = (percent <= 4);
       ps.b.ShutdownImminent = (percent <= 2);
+      ps.b.CommunicationLost = binPayload.b.noData;
       ps.b.ShutdownRequested = bRequestSD;
       bRequestSD = false;
       Device.SetPresentStatus(ps.w, percent, binPayload.VoltsOut);
@@ -627,6 +638,12 @@ void loop()
     
     static uint8_t nSSRsecs = 1;
     static bool bRestartingDisplay = false;
+
+    if(nShutoffDelay)
+    {
+      if(--nShutoffDelay == 0) // Shutoff delay from PC
+        bPushSSR = true;
+    }
 
     // Fix for display going wonky after returning to AC power
     if(binPayload.b.OnUPS == 0)
@@ -801,6 +818,14 @@ void calcTimeRemaining()
   static uint8_t nCnt = 0;
   bool bCharging = (binPayload.b.OnUPS || (binPayload.WattsIn - binPayload.WattsOut > 1));
 
+  if(bCharging)
+  {
+    uint8_t nChargeWh = binPayload.WattsIn - binPayload.WattsOut - 1; // assume 1W operating + charging
+
+    if(nChargeWh > prefs.nPeakChargeWh)
+      prefs.nPeakChargeWh = nChargeWh;
+  }
+
   if (binPayload.battPercent != perc || (!bCharging && ++nCnt >= 4))
   {
     perc = binPayload.battPercent;
@@ -812,7 +837,7 @@ void calcTimeRemaining()
 
 #if CONFIG_TINYUSB_HID_ENABLED && USE_HID
     uint32_t nSecsTotal = binPayload.Capacity * binPayload.Health * 100 / nWattAvg / 3;
-    uint32_t nSecsToCharge = binPayload.Capacity * binPayload.Health * 100 / 20 / 3; // Todo: Assuming 20W. Save peak (wattsIn - wattsOut) at some point
+    uint32_t nSecsToCharge = binPayload.Capacity * binPayload.Health * 100 / prefs.nPeakChargeWh / 3;
 
     if(nSecsToCharge > 0xFFFF)
       nSecsToCharge = 0xFFFF;
@@ -978,6 +1003,11 @@ void checkSerial()
         binData[1] = nWattsAccumHr / 3621; // current this hour
         memcpy( (uint8_t*)&binData[2], &nWattHrArr, sizeof(nWattHrArr)); // last 24hrs of data
         Serial.write((uint8_t*)&binData, sizeof(binData));
+      }
+      else if( buffer[0] == 0xAB && buffer[1] == 0xC2) // Delay power off from PC
+      {
+        nLongPress = (buffer[0] << 8) | buffer[1];
+        nShutoffDelay = (buffer[2] << 8) | buffer[3];
       }
       else
       {
