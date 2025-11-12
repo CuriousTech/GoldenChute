@@ -266,7 +266,7 @@ uint16_t HIDPowerDevice::_onGetFeature(uint8_t report_id, uint8_t* buffer, uint1
       buffer[1] = (_nVolts >> 8);
       return 2;
     case HID_PD_IDEVICECHEMISTRY:
-      buffer[0] = IDEVICECHEMISTRY;
+      buffer[0] = IDEVICECHEMISTRY; // 10 byte string. Undefined
       return 1;
     case HID_PD_MANUFACTUREDATE:
       {
@@ -294,18 +294,29 @@ uint16_t HIDPowerDevice::_onGetFeature(uint8_t report_id, uint8_t* buffer, uint1
       return 2;
 /*
     case HID_PD_DELAYBE4SHUTDOWN:
-      return 1;
+      return 2;
     case HID_PD_DELAYBE4REBOOT:
-      return 1;
+      return 2;
     case HID_PD_IOEMINFORMATION:
       break;
     case HID_PD_IPRODUCT:
       break;
-    case HID_PD_RUNTIMETOEMPTY:
-      break;
 */
   }
 
+  return 0;
+}
+
+uint16_t HIDPowerDevice::_onSetFeature(uint8_t report_id, uint8_t* buffer, uint16_t len)
+{
+/*  switch(report_id)
+  {
+    case HID_PD_DELAYBE4SHUTDOWN:
+      return 2;
+    case HID_PD_DELAYBE4REBOOT:
+      return 2;
+  }
+*/
   return 0;
 }
 
