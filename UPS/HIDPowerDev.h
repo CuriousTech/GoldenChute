@@ -97,6 +97,7 @@ public:
 private:
   uint16_t _onGetDescriptor(uint8_t* buffer);
   uint16_t _onGetFeature(uint8_t report_id, uint8_t* buffer, uint16_t len);
+  uint16_t _onSetFeature(uint8_t report_id, uint8_t* buffer, uint16_t len);
 
   uint8_t _PresentStatus[2];
   uint8_t _RemainingCap = 100;
