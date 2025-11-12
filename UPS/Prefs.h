@@ -19,11 +19,12 @@ public:
   char      szName[32] = "UPS"; // mDNS and OTA name
   char      szPassword[32] = "password"; // password for web
   uint16_t  ppkw = 15; // cents
-  uint32_t  initialDate = 0; // first use date
+  uint32_t  initialDate = 0; // first use or mfg date
   uint16_t  nPercentUsage = 0;
   uint16_t  nCycles = 0;
   uint32_t  lastCycleDate = 0; // last cycle of 100% - should be cycled every 3 months
-  uint8_t   res[16]; // change the length to force overwrite
+  uint8_t   nPeakChargeWh = 20;
+  uint8_t   res[15]; // change the length to force overwrite
   uint8_t   end;
 private:
   uint16_t Fletcher16( uint8_t* data, int count);
