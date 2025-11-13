@@ -104,7 +104,7 @@ bool bPushSSR = false;
 bool bGMFormatSerial;
 uint32_t spiMS = 10000000;
 bool bNeedRestart; // display may need fix after switching from battery to AC
-uint8_t nShutoffDelay;
+uint16_t nShutoffDelay;
 
 // percent calculator
 uint8_t nLevelPercent;
@@ -126,8 +126,9 @@ struct flagBits{
   uint16_t noData : 1; // display timeout indicator
   uint16_t battDisplay : 3; // 0-5 (1 and 5 blink)
   uint16_t battLevel : 3; // 0-7 (used by the app for shutdown)
-  uint16_t needCycle : 1; // if it's been over 90 days with no >=70% cycle
-  uint16_t reserved : 4;
+  uint16_t needCycle : 1; // if it's been over 90 days with no 100% cycle
+  uint16_t shuttingOff : 1; // shutoff timer is running
+  uint16_t reserved : 3;
 };
 
 struct upsData
@@ -188,7 +189,8 @@ String dataJson()
   js.Var("initdate", prefs.initialDate);
   js.Var("cycledate", prefs.lastCycleDate);
   js.Var("health", battHealth());
-  js.Var("nc",binPayload.b.needCycle);
+  js.Var("nc", binPayload.b.needCycle);
+  js.Var("so", nShutoffDelay);
   return js.Close();
 }
 
@@ -294,10 +296,11 @@ void jsonCallback(int16_t iName, int iValue, char *psValue)
       prefs.ppkw = iValue;
       break;
     case 5: // power
-      nLongPress = iValue >> 16; // rando num to make it safer
       nShutoffDelay = nLongPress & 0xFFFF;
       if(nShutoffDelay == 0)
-        bPushSSR = true;
+         nLongPress = 0; // cancel
+      else
+         nLongPress = iValue >> 16; // rando num to make it safer
       break;
   }
 }
@@ -351,6 +354,8 @@ void onBinEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEvent
       client->keepAlivePeriod(50);
       binClientCnt++;
       client->binary((uint8_t*)&binPayload, sizeof(binPayload));
+      nShutoffDelay = 0; // cancel shut down if there is one
+      nLongPress = 0;
       break;
     case WS_EVT_DISCONNECT:    //client disconnected
       if(binClientCnt)
@@ -377,8 +382,11 @@ void onBinEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEvent
           case 0xAB: // shutoff delay
             if(data[1] == 0xC2)
             {
-              nLongPress = (data[0] << 8) || data[1];
-              nShutoffDelay = (buffer[2] << 8) | buffer[3];
+              nShutoffDelay = (data[2] << 8) | data[3];
+              if(nShutoffDelay == 0) // cancel poweroff
+                nLongPress = 0;
+              else
+                nLongPress = (data[0] << 8) || data[1];
             }
             break;
         }
@@ -519,7 +527,7 @@ void setup()
     prefs.lastCycleDate = mktime(&initDate);
   
     prefs.nCycles = 1; // if you know how many cycles so far
-    prefs.nPercentUsage = 0;  // copy these last 3 values from web page to preserve them before flashing
+    prefs.nPercentUsage = 22;  // copy these last 3 values from web page to preserve them before flashing
     prefs.update();
   }
 
@@ -575,6 +583,9 @@ void loop()
       calcPercent();
       calcTimeRemaining();
       calcMinMax();
+
+      binPayload.b.shuttingOff = (nLongPress) ? 1:0;
+
       checksumData(); // prepare it for transmit
 
       ws.textAll( statusJson() ); // send to web page or other websocket clients
@@ -598,7 +609,7 @@ void loop()
       ps.b.BatteryPresent = 1;
       ps.b.FullyCharged = (binPayload.b.charging == 0 && binPayload.b.OnAC == 1);
       ps.b.BelowRemainingCapacityLimit = (percent <= 4);
-      ps.b.ShutdownImminent = (percent <= 2);
+      ps.b.ShutdownImminent = (percent <= 2 || nLongPress);
       ps.b.CommunicationLost = binPayload.b.noData;
       ps.b.ShutdownRequested = bRequestSD;
       bRequestSD = false;
@@ -639,7 +650,7 @@ void loop()
     static uint8_t nSSRsecs = 1;
     static bool bRestartingDisplay = false;
 
-    if(nShutoffDelay)
+    if(nLongPress == 0xABC2 && nShutoffDelay)
     {
       if(--nShutoffDelay == 0) // Shutoff delay from PC
         bPushSSR = true;
@@ -995,6 +1006,8 @@ void checkSerial()
       if( buffer[0] == 0xAA && buffer[1] == 'G' && buffer[2] == 'M' && buffer[3] == 0)
       {
         bGMFormatSerial = true;
+        nShutoffDelay = 0; // cancel shut down if there is one
+        nLongPress = 0;
       }
       else if( buffer[0] == 0xAA && buffer[1] == 'W' && buffer[2] == 'H' && buffer[3] == 0)
       {
@@ -1006,8 +1019,11 @@ void checkSerial()
       }
       else if( buffer[0] == 0xAB && buffer[1] == 0xC2) // Delay power off from PC
       {
-        nLongPress = (buffer[0] << 8) | buffer[1];
         nShutoffDelay = (buffer[2] << 8) | buffer[3];
+        if(nShutoffDelay == 0) // cancel poweroff
+            nLongPress = 0;
+        else
+            nLongPress = (buffer[0] << 8) || buffer[1];
       }
       else
       {
