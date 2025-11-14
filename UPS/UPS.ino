@@ -652,8 +652,18 @@ void loop()
 
     if(nLongPress == 0xABC2 && nShutoffDelay)
     {
-      if(--nShutoffDelay == 0) // Shutoff delay from PC
-        bPushSSR = true;
+      if(--nShutoffDelay == 0) // Shutoff delay from PC or web
+      {
+        if( binPayload.b.OnUPS == 0) // Power has resumed (assuming it will continue)
+        {
+          nShutoffDelay = 0;
+          nLongPress = 0;
+        }
+        else
+        {
+          bPushSSR = true;
+        }
+      }
     }
 
     // Fix for display going wonky after returning to AC power
@@ -930,7 +940,7 @@ void calcPercent()
   else if (binPayload.b.OnUPS == 0 && lastOnUPS) // Switching off battery
   {
     bNeedRestart = true; // sometimes the display glitches. Allowing it to timeout and restart causes inititialize commands to be resent
-
+    
     uint8_t nPercUsed = (nDrainStartPercent - binPayload.battPercent);
     // TODO: add an exponent - 100% = 2x 50% = 5x 30% ish
     prefs.nPercentUsage += nPercUsed;
