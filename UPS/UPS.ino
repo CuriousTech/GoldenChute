@@ -184,7 +184,10 @@ String dataJson()
   js.Array("wattArr", nWattHrArr, 24);
   js.Array("wmin", nWattMin, 24);
   js.Array("wmax", nWattMax, 24);
-  js.Var("percuse", prefs.nPercentUsage);
+  uint8_t nPerc = prefs.nPercentUsage;
+  if(binPayload.b.OnUPS) // add the live percent used
+    nPerc += 100 - binPayload.battPercent;
+  js.Var("percuse", nPerc);
   js.Var("cycles", prefs.nCycles);
   js.Var("initdate", prefs.initialDate);
   js.Var("cycledate", prefs.lastCycleDate);
@@ -646,7 +649,10 @@ void loop()
     lastMS = millis();
 
     getLocalTime(&lTime); // used globally
-    
+
+    if(binPayload.b.OnUPS && g_nSecondsRemaining) // make it count down
+      g_nSecondsRemaining--;
+
     static uint8_t nSSRsecs = 1;
     static bool bRestartingDisplay = false;
 
@@ -983,7 +989,7 @@ void calcPercent()
       cnt  = 0;
     }
   
-    // Usage stats
+    // Usage stats (in = UPS + outputs)
     nWattsAccumHr += binPayload.WattsIn;
     nWhCnt++;
   }
