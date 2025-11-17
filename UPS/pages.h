@@ -184,7 +184,7 @@ function timeRem()
   secs = (secs%60).toFixed()
   if(secs<10) secs='0'+secs
   str = ''
-  if(h) str=h+':'
+  if(secs>=3600) str=h+':'
   str+=m+':'+secs
   return str
 }
