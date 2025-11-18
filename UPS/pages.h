@@ -143,7 +143,7 @@ function draw(){
   c.fillText(upsState.battPercent+'%', 156, 10)
   c.fillText("Output", 230, 10)
   c.textAlign="center"
-  c.fillText(timeRem(), 138, 27)
+  c.fillText(timeRem(+d.secsrem), 138, 27)
   c.textAlign="right"
 
   c.font='italic 22pt sans-serif'
@@ -174,18 +174,17 @@ function draw(){
   c.stroke()
 }
 
-function timeRem()
+function timeRem(secs)
 {
-  secs = +d.secsrem
-  h = (secs / (60*60)).toFixed()
-  m = (secs % (60*60)).toFixed()
+  h = (secs / 3600).toFixed()
+  m = (secs % 3600).toFixed()
   m = (m / 60).toFixed()
   if(m<10 && h) m='0'+m
-  secs = (secs%60).toFixed()
-  if(secs<10) secs='0'+secs
+  s = (secs%60).toFixed()
+  if(s<10) s='0'+s
   str = ''
   if(secs>=3600) str=h+':'
-  str+=m+':'+secs
+  str+=m+':'+s
   return str
 }
 
