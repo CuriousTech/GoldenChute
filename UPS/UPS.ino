@@ -21,7 +21,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-// Goldenmate UPS with ESP32-C3-super mini
+// Goldenmate UPS with ESP32-C3-super mini or ESP32-S3-super mini
 
 // Build with Arduino IDE 1.8.19, ESP32 2.0.14 or 3.2.0
 // CPU Speed: 160MHz (WiFi)
@@ -530,7 +530,7 @@ void setup()
     prefs.lastCycleDate = mktime(&initDate);
   
     prefs.nCycles = 1; // if you know how many cycles so far
-    prefs.nPercentUsage = 22;  // copy these last 3 values from web page to preserve them before flashing
+    prefs.nPercentUsage = 0;  // copy these last 3 values from web page to preserve them before flashing
     prefs.update();
   }
 
@@ -912,8 +912,8 @@ void levelChange()
     nBarPercent = battLevels[binPayload.b.battLevel] - nLevelPercent;
   }
 
-  // Wh * 3600 = watt seconds (810,000)  10%=81,000
-  nWattsPerBar = BATTERY_WH * 3620 / nBarPercent; // actually 3621-3622 per hour
+  // % of Wh * 3600 = watt seconds
+  nWattsPerBar = nBarPercent * (BATTERY_WH * 3620) / 100; // actually 3621-3622 per hour
 
   if(binPayload.b.OnUPS)
     nWattsAccum = nWattsPerBar; // will be decrementing
@@ -947,13 +947,14 @@ void calcPercent()
   {
     bNeedRestart = true; // sometimes the display glitches. Allowing it to timeout and restart causes inititialize commands to be resent
     
-    uint8_t nPercUsed = (nDrainStartPercent - binPayload.battPercent);
+    int8_t nPercUsed = (nDrainStartPercent - binPayload.battPercent);
     // TODO: add an exponent - 100% = 2x 50% = 5x 30% ish
-    prefs.nPercentUsage += nPercUsed;
+    if(nPercUsed > 0)
+      prefs.nPercentUsage += nPercUsed;
 
     while(prefs.nPercentUsage > 100)
     {
-      prefs.lastCycleDate = time(nullptr); // reset date for full cycle
+      prefs.lastCycleDate = time(nullptr); // reset date of last full cycle
       prefs.nCycles++; // Add 1 cycle for every 100% use
       prefs.nPercentUsage -= 100;
     }
