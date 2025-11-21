@@ -34,8 +34,11 @@ The female XHB (XH works well, and a plain female pinheader actually holds well 
 Cut a notch in the rear panel to fit the USB cable.  
   
 **Arduino:**  
-Settings for router SSID and SSID password are in eeMem.h (was Prefs.h), as well as the remote password for web control. If they aren't set or the SSID changes, EspTouch can be used.  
-Compiling the code should be easy. Most information is in UPS.ino, like where to get the libraries needed, and settings for the ESP32-C3-super mini such as enabling CDC on boot (for serial output). There's also an ESP32-S3 super mini that is pin compatible, and has HID support for UPS emulation. It has 2 more pins (1 per side) that just overhang on the PCB. The current GPIO pins the code for the C3 are incorrect for the r3 board. There are likely different models of the S3 also. Just make sure 5V is pin 1, and GND is pin 2.  
+Settings for router SSID and SSID password are in Prefs.h, as well as the remote password for web control. If they aren't set or the SSID changes, EspTouch can be used.  
+Compiling the code should be easy. Most information is in UPS.ino, like where to get the libraries needed, and settings for the ESP32-C3-super mini such as enabling CDC on boot (for serial output).  
+There's code in UPS.ino to setup the initialDate, lastCycleDate, Cycles and percent to be used once, and commented out, but the Prefences seems to get overwritten when flashing new code. This will be rectified eventually.  
+
+There's also an ESP32-S3 super mini that is pin compatible, and has HID support for UPS emulation. It has 2 more pins (1 per side) that just overhang on the PCB. The current GPIO pins the code for the C3 are incorrect for the r3 board. There are likely different models of the S3 also. Just make sure 5V is pin 1, and GND is pin 2.  
   
 **Windows app:**  
 Extract the exe and move it to somewhere like C:\Goldenmate.  The startup folder symbolic link will auto-generate to this path.  
@@ -51,7 +54,7 @@ The radio buttons allow selecting either COM or websocket.
 Percent to shut down: Active (red bars left of battery in the main display and tray icon) and Inactive (right red bars) depends on whether the monitor is in standby. The depth of discharge (D.O.D.) determines the impact on health. When inactive, it should shut down at 70% for best health. When active, more time can be allowed for manual shutdown. The % is just the bar levels, not actual percent (which could possibly be inaccurate). There is a 10 second delay when it reaches the desired %, then it will shut down or hibernate/hibrid-sleep if that is set up properly and doesn't fail, otherwise it will shut down.  
 Note: Hibrid-sleep can wake immediately by odd USB devices if not set up properly. It should be tested before use. It will also slowly drain the battery over time.  
 Skip seconds: 0 will add data to the chart every second (total 24 hours). 1 would be 48 hours, but records peak values of 2 seconds.  
-The web page also allows manual remote shutdown/hibernate. The password will need to be the same here as in eeMem.h  Test it once to esnure it works properly.  
+The web page also allows manual remote shutdown/hibernate. The password will need to be the same here as in Prefs.h  Test it once to esnure it works properly.  
 Alerts currently just cause the window to popup and show red text over the "Input" label, such as "Serial timeout/in use" or WebSocket disconnected" with annoying audio.  
 Power off after [30] seconds: Will turn the UPS power off (cutting power to everything on it) the delayed time (15 secs to 60 mins) after the PC begins shutdown/hibernate.  
  Note:The ESP will also lose power, so there's no way to remotely power it back on.  
