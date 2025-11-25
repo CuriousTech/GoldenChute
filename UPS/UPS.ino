@@ -111,6 +111,7 @@ uint8_t nLevelPercent;
 uint8_t nBarPercent;
 uint32_t nWattsAccum;
 uint32_t nWattsPerBar;
+uint8_t nDrainStartPercent = 0;
 
 uint32_t g_nSecondsRemaining;
 uint32_t nWattHrArr[24];
@@ -391,6 +392,8 @@ void onBinEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEvent
               else
                 nLongPress = (data[0] << 8) || data[1];
             }
+            usageAdd(); // save usage before shutdown (app sends a delay time or 0 if not used)
+            prefs.update();
             break;
         }
       }
@@ -512,25 +515,25 @@ void setup()
   gpio_isr_handler_add(CS_PIN, CS_ISR, NULL);
   gpio_intr_enable(CS_PIN);
 
-  // Adjust init date and cycles manually (firmware updates erase Preferences)
+  // Adjust init date and cycles manually (firmware updates erase Preferences, but shouldn't)
   if(prefs.initialDate == 0)
   {
     tm initDate = {0};
     // set first used date
     initDate.tm_year = 2025 - 1900; // 2025
-    initDate.tm_mon = 5; // June
+    initDate.tm_mon = 6 - 1; // June
     initDate.tm_mday = 1; // day of month
     initDate.tm_hour = 12; // offset for most TZ
     prefs.initialDate = mktime(&initDate);
-  
+
     // set last cycle date
     initDate.tm_year = 2025 - 1900; // 2025
-    initDate.tm_mon = 6; // July
-    initDate.tm_mday = 1; // day of month
+    initDate.tm_mon = 10 - 1; // July
+    initDate.tm_mday = 18; // day of month
     prefs.lastCycleDate = mktime(&initDate);
-  
-    prefs.nCycles = 1; // if you know how many cycles so far
-    prefs.nPercentUsage = 0;  // copy these last 3 values from web page to preserve them before flashing
+
+    prefs.nCycles = 2; // if you know how many cycles so far
+    prefs.nPercentUsage = 10;  // copy these last 3 values from web page to preserve them before flashing
     prefs.update();
   }
 
@@ -538,8 +541,8 @@ void setup()
 
 #if CONFIG_TINYUSB_HID_ENABLED && USE_HID
   const manufactDate mfd ={
-    .day = 1,
-    .month = 5,
+    .day = 1, // 1~31
+    .month = 5, // 0~11
     .year = 2025 - 1980
   };
   Device.setMfgDate(mfd); // Manufactured date: June 1, 2025
@@ -565,6 +568,8 @@ void loop()
     {
       digitalWrite(SSR, LOW); // release button after 500ms
       nLongPress = 0;
+      usageAdd(); // add up in case it's powered off
+      prefs.update(); // save data before power off
     }
   }
   if(bPushSSR) // press button, start ms timer
@@ -810,7 +815,7 @@ void loop()
         tzset();
       }
 
-      prefs.update(); // check for any prefs changes and save
+      prefs.update(); // check for any ee changes and save
 #if CONFIG_TINYUSB_HID_ENABLED && USE_HID
       Device.setCycleCnt(prefs.nCycles);
 #endif
@@ -930,12 +935,30 @@ uint8_t battHealth()
   return 99 - percDrop; // starting at 99%
 }
 
+void usageAdd()
+{
+  int8_t nPercUsed = (nDrainStartPercent - binPayload.battPercent);
+
+  if(nPercUsed <= 0)
+    return;
+
+  // TODO: add an exponent - 100% = 2x 50% = 5x 30% ish
+  prefs.nPercentUsage += nPercUsed;
+  nDrainStartPercent = binPayload.battPercent; // remove the added in case this is called again
+
+  if(prefs.nPercentUsage >= 100)
+  {
+    prefs.lastCycleDate = time(nullptr); // reset date of last full cycle
+    prefs.nCycles++; // Add 1 cycle for every 100% use
+    prefs.nPercentUsage -= 100;
+  }  
+}
+
 void calcPercent()
 {
   static uint8_t lvl = 0;
   static uint8_t cnt = 0;
   static bool lastOnUPS;
-  static uint8_t nDrainStartPercent = 0;
 
   if (binPayload.b.battLevel != lvl || (binPayload.b.OnUPS && !lastOnUPS) ) // Switching to backup triggers level change to start accumulator
   {
@@ -946,18 +969,7 @@ void calcPercent()
   else if (binPayload.b.OnUPS == 0 && lastOnUPS) // Switching off battery
   {
     bNeedRestart = true; // sometimes the display glitches. Allowing it to timeout and restart causes inititialize commands to be resent
-    
-    int8_t nPercUsed = (nDrainStartPercent - binPayload.battPercent);
-    // TODO: add an exponent - 100% = 2x 50% = 5x 30% ish
-    if(nPercUsed > 0)
-      prefs.nPercentUsage += nPercUsed;
-
-    while(prefs.nPercentUsage > 100)
-    {
-      prefs.lastCycleDate = time(nullptr); // reset date of last full cycle
-      prefs.nCycles++; // Add 1 cycle for every 100% use
-      prefs.nPercentUsage -= 100;
-    }
+    usageAdd();
     prefs.update();
   }
 
@@ -1041,6 +1053,8 @@ void checkSerial()
             nLongPress = 0;
         else
             nLongPress = (buffer[0] << 8) || buffer[1];
+        addUsage();
+        prefs.update();
       }
       else
       {
