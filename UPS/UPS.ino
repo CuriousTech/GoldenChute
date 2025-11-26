@@ -1053,7 +1053,7 @@ void checkSerial()
             nLongPress = 0;
         else
             nLongPress = (buffer[0] << 8) || buffer[1];
-        addUsage();
+        usageAdd();
         prefs.update();
       }
       else
