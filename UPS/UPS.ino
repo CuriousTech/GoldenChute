@@ -111,7 +111,7 @@ uint8_t nLevelPercent;
 uint8_t nBarPercent;
 uint32_t nWattsAccum;
 uint32_t nWattsPerBar;
-uint8_t nDrainStartPercent = 0;
+uint8_t nDrainStartPercent;
 
 uint32_t g_nSecondsRemaining;
 uint32_t nWattHrArr[24];
@@ -171,6 +171,7 @@ void calcPercent(void);
 void checkSerial(void);
 uint8_t battHealth(void);
 void calcMinMax(void);
+void usageAdd(void);
 
 String dataJson()
 {
@@ -937,6 +938,11 @@ uint8_t battHealth()
 
 void usageAdd()
 {
+  if(nDrainStartPercent == 0) // initial value is invalid
+  {
+    nDrainStartPercent = binPayload.battPercent;
+  }
+
   int8_t nPercUsed = (nDrainStartPercent - binPayload.battPercent);
 
   if(nPercUsed <= 0)
