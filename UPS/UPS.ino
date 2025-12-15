@@ -569,6 +569,7 @@ void loop()
     {
       digitalWrite(SSR, LOW); // release button after 500ms
       nLongPress = 0;
+      lastMSbtn = 0;
       usageAdd(); // add up in case it's powered off
       prefs.update(); // save data before power off
     }
@@ -650,11 +651,11 @@ void loop()
     }
   }
 
-  if(millis() - lastMS >= 1000) // only do stuff once per second
+  if(millis() - lastMS >= 1000 && lastMSbtn == 0) // only do stuff once per second and not while button is being pressed
   {
     lastMS = millis();
 
-    getLocalTime(&lTime); // used globally
+    getLocalTime(&lTime); // used globally (!first call can block for several seconds)
 
     if(binPayload.b.OnUPS && g_nSecondsRemaining) // make it count down
       g_nSecondsRemaining--;
