@@ -24,8 +24,8 @@ SOFTWARE.
 // Goldenmate UPS with ESP32-C3-super mini or ESP32-S3-super mini
 
 // Build with Arduino IDE 1.8.19, ESP32 2.0.14 or 3.2.0
-// CPU Speed: 160MHz (WiFi)
-// Partition: Default 4MB with anything
+// CPU Speed: 160MHz(C3) 240MHz(S3)
+// Partition: Default 4MB with spiffs
 // USB CDC On Boot: Enabled - for serial output over USB
 
 ///////////////////////////////////////////////////
@@ -45,7 +45,7 @@ SOFTWARE.
 #include <JsonParse.h> //https://github.com/CuriousTech/ESP-HVAC/tree/master/Libraries/JsonParse
 #include <ArduinoOTA.h>
 #include <ESPmDNS.h>
-#include "Prefs.h"
+#include "Config.h"
 #include "pages.h"
 #include "jsonstring.h"
 
@@ -63,7 +63,7 @@ SOFTWARE.
 #define SCK_PIN GPIO_NUM_13
 #define LED     48
 #define SSR     12
-//#define USE_HID 1  // Uncomment for HID device
+#define USE_HID 1  // Uncomment for HID device
 #endif
 
 // Auto-enabled when building for ESP32-S3 and uses HID
@@ -93,7 +93,7 @@ tm lTime;
 void jsonCallback(int16_t iName, int iValue, char *psValue);
 JsonParse jsonParse(jsonCallback);
 
-Prefs prefs;
+Config cfg;
 
 bool bConfigDone; // EspTouch config
 bool bStarted; // WiFi started
@@ -181,21 +181,22 @@ String dataJson()
   js.Var("rssi", WiFi.RSSI() );
   js.Var("connected", binClientCnt);
   js.Var("nodata", binPayload.b.noData);
-  js.Var("ppkwh", prefs.ppkw);
+  js.Var("ppkwh", cfg.ppkw);
   js.Var("wh", nWattsAccumHr / 3621); // usage this hour
   js.Array("wattArr", nWattHrArr, 24);
   js.Array("wmin", nWattMin, 24);
   js.Array("wmax", nWattMax, 24);
-  uint8_t nPerc = prefs.nPercentUsage;
+  uint8_t nPerc = cfg.nPercentUsage;
   if(binPayload.b.OnUPS) // add the live percent used
     nPerc += 100 - binPayload.battPercent;
   js.Var("percuse", nPerc);
-  js.Var("cycles", prefs.nCycles);
-  js.Var("initdate", prefs.initialDate);
-  js.Var("cycledate", prefs.lastCycleDate);
+  js.Var("cycles", cfg.nCycles);
+  js.Var("initdate", cfg.initialDate);
+  js.Var("cycledate", cfg.lastCycleDate);
   js.Var("health", battHealth());
   js.Var("nc", binPayload.b.needCycle);
   js.Var("so", nShutoffDelay);
+  js.Array("daily", cfg.nDailyWh, 31);
   return js.Close();
 }
 
@@ -269,7 +270,7 @@ void jsonCallback(int16_t iName, int iValue, char *psValue)
   switch(iName)
   {
     case 0: // key
-      if (!strcmp(psValue, prefs.szPassword)) // first item must be key
+      if (!strcmp(psValue, cfg.szPassword)) // first item must be key
         bKeyGood = true;
       break;
     case 1: // hibernate
@@ -298,7 +299,7 @@ void jsonCallback(int16_t iName, int iValue, char *psValue)
       bNeedRestart = true;
       break;
     case 4: // ppkwh
-      prefs.ppkw = iValue;
+      cfg.ppkw = iValue;
       break;
     case 5: // power
       nShutoffDelay = nLongPress & 0xFFFF;
@@ -384,6 +385,15 @@ void onBinEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEvent
               client->binary((uint8_t*)&binData, sizeof(binData));
             }
             break;
+          case 'D':
+            {
+              uint32_t binData[33];
+              binData[0] = 0x00DEBCAB;
+              binData[1] = cfg.ppkw;
+              memcpy( (uint8_t*)&binData[2], &cfg.nDailyWh, sizeof(cfg.nDailyWh)); // full month data
+              client->binary((uint8_t*)&binData, sizeof(binData));
+            }
+            break;
           case 0xAB: // shutoff delay
             if(data[1] == 0xC2)
             {
@@ -394,7 +404,7 @@ void onBinEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEvent
                 nLongPress = (data[0] << 8) || data[1];
             }
             usageAdd(); // save usage before shutdown (app sends a delay time or 0 if not used)
-            prefs.update();
+            cfg.update();
             break;
         }
       }
@@ -454,13 +464,15 @@ void setup()
   pinMode(SCK_PIN, INPUT);
   pinMode(SSR, OUTPUT);
 
-  WiFi.hostname(prefs.szName);
+  cfg.init();
+
+  WiFi.hostname(cfg.szName);
   WiFi.mode(WIFI_STA);
 
-  if ( prefs.szSSID[0] )
+  if ( cfg.szSSID[0] )
   {
-    WiFi.begin(prefs.szSSID, prefs.szSSIDPassword);
-    WiFi.setHostname(prefs.szName);
+    WiFi.begin(cfg.szSSID, cfg.szSSIDPassword);
+    WiFi.setHostname(cfg.szName);
     bConfigDone = true;
   }
   else
@@ -495,11 +507,11 @@ void setup()
 
   server.begin();
 
-  ArduinoOTA.setHostname(prefs.szName);
+  ArduinoOTA.setHostname(cfg.szName);
   ArduinoOTA.begin();
   ArduinoOTA.onStart([]() {
     digitalWrite(SSR, LOW); // ensure button isn't being pressed
-    prefs.update();
+    cfg.update();
     alert("OTA Update Started");
     ws.closeAll();
   });
@@ -517,7 +529,7 @@ void setup()
   gpio_intr_enable(CS_PIN);
 
   // Adjust init date and cycles manually (firmware updates erase Preferences, but shouldn't)
-  if(prefs.initialDate == 0)
+  if(cfg.initialDate == 0)
   {
     tm initDate = {0};
     // set first used date
@@ -525,17 +537,17 @@ void setup()
     initDate.tm_mon = 6 - 1; // June
     initDate.tm_mday = 1; // day of month
     initDate.tm_hour = 12; // offset for most TZ
-    prefs.initialDate = mktime(&initDate);
+    cfg.initialDate = mktime(&initDate);
 
     // set last cycle date
     initDate.tm_year = 2025 - 1900; // 2025
-    initDate.tm_mon = 10 - 1; // July
+    initDate.tm_mon = 7 - 1; // July
     initDate.tm_mday = 18; // day of month
-    prefs.lastCycleDate = mktime(&initDate);
+    cfg.lastCycleDate = mktime(&initDate);
 
-    prefs.nCycles = 2; // if you know how many cycles so far
-    prefs.nPercentUsage = 10;  // copy these last 3 values from web page to preserve them before flashing
-    prefs.update();
+    cfg.nCycles = 3; // if you know how many cycles so far
+    cfg.nPercentUsage = 10;  // copy these last 3 values from web page to preserve them before flashing
+    cfg.update();
   }
 
   binPayload.b.noData = 1; // start out with a fail
@@ -571,7 +583,7 @@ void loop()
       nLongPress = 0;
       lastMSbtn = 0;
       usageAdd(); // add up in case it's powered off
-      prefs.update(); // save data before power off
+      cfg.update(); // save data before power off
     }
   }
   if(bPushSSR) // press button, start ms timer
@@ -741,9 +753,9 @@ void loop()
       {
         Serial.println("SmartConfig set");
         bConfigDone = true;
-        WiFi.SSID().toCharArray(prefs.szSSID, sizeof(prefs.szSSID)); // Get the SSID from SmartConfig or last used
-        WiFi.psk().toCharArray(prefs.szSSIDPassword, sizeof(prefs.szSSIDPassword) );
-        prefs.update();
+        WiFi.SSID().toCharArray(cfg.szSSID, sizeof(cfg.szSSID)); // Get the SSID from SmartConfig or last used
+        WiFi.psk().toCharArray(cfg.szSSIDPassword, sizeof(cfg.szSSIDPassword) );
+        cfg.update();
       }
     }
 
@@ -756,20 +768,20 @@ void loop()
             break;
           Serial.println("WiFi Connected"); // first connect setup
           WiFi.mode(WIFI_STA);
-          MDNS.begin( prefs.szName );
-          MDNS.addService("iot", "tcp", 80);
+          MDNS.begin( cfg.szName );
+          MDNS.addService("iot", "tcp", 80); // All my devices are searchable in the "iot" domain. Change if desired.
           bStarted = true;
           configTime(0, 0, "pool.ntp.org");
           setenv("TZ", TZ, 1);
           tzset();
 
-          if(prefs.initialDate == 0)
+          if(cfg.initialDate == 0)
           {
-            prefs.initialDate = time(nullptr); // set date of first use
+            cfg.initialDate = time(nullptr); // set date of first use
           }
-          if(prefs.lastCycleDate == 0)
+          if(cfg.lastCycleDate == 0)
           {
-            prefs.lastCycleDate = time(nullptr); // set date of first use
+            cfg.lastCycleDate = time(nullptr); // set date of first use
           }
           break;
         case WL_CONNECTION_LOST:
@@ -782,11 +794,11 @@ void loop()
           bStarted = false;
           break;
         case WL_DISCONNECTED:
-          WiFi.begin(prefs.szSSID, prefs.szSSIDPassword);
+          WiFi.begin(cfg.szSSID, cfg.szSSIDPassword);
           Serial.print("reconnect:");
-          Serial.print(prefs.szSSID);
+          Serial.print(cfg.szSSID);
           Serial.print(" ");
-          Serial.println(prefs.szSSIDPassword);
+          Serial.println(cfg.szSSIDPassword);
           break;
       }
     }
@@ -795,6 +807,7 @@ void loop()
     {
       hour_save = lTime.tm_hour;
 
+      // hourly wh usage for day
       if(nWhCnt > 2)
       {
         uint16_t nDiv = 3621;
@@ -804,6 +817,24 @@ void loop()
         nWattHrArr[h] = nWattsAccumHr / nDiv;
         nWattsAccumHr = 0;
         nWhCnt = 0;
+      }
+
+      // daily wh usage to cost per day
+      if(hour_save == 0)
+      {
+        uint16_t nTotal = 0;
+        uint8_t nCnt = 0;
+        for(uint8_t i = 0; i < 24; i++)
+        {
+          nTotal += nWattHrArr[i];
+          if(nWattHrArr[i]) nCnt++;
+        }
+        cfg.nDailyWh[lTime.tm_mday - 1] = nTotal; // total for the day (1 day off, don't care)
+
+        // Fill everything with 1st full day to kickstart it
+        if((cfg.nDailyWh[0] == 0 || cfg.nDailyWh[1] == 0) && nCnt == 24)
+          for(uint8_t i = 0; i < 31; i++)
+            cfg.nDailyWh[i] = nTotal;
       }
 
       // reset min/max for the hour
@@ -817,9 +848,9 @@ void loop()
         tzset();
       }
 
-      prefs.update(); // check for any ee changes and save
+      cfg.update(); // check for any ee changes and save
 #if CONFIG_TINYUSB_HID_ENABLED && USE_HID
-      Device.setCycleCnt(prefs.nCycles);
+      Device.setCycleCnt(cfg.nCycles);
 #endif
     }
 
@@ -837,9 +868,10 @@ void calcTimeRemaining()
   static uint8_t nWattArrLen = 0;
   static uint16_t wattArr[16];
 
+  // Do a little averaging (16s)
   wattArr[nIdx++] = binPayload.WattsIn;
   nIdx &= 15;
-  if (nWattArrLen < 16)
+  if (nWattArrLen < 16) // initial fill up
     nWattArrLen++;
 
   uint16_t wTot = 0;
@@ -856,8 +888,8 @@ void calcTimeRemaining()
   {
     uint8_t nChargeWh = binPayload.WattsIn - binPayload.WattsOut - 1; // assume 1W operating + charging
 
-    if(nChargeWh > prefs.nPeakChargeWh)
-      prefs.nPeakChargeWh = nChargeWh;
+    if(nChargeWh > cfg.nPeakChargeWh)
+      cfg.nPeakChargeWh = nChargeWh;
   }
 
   if (binPayload.battPercent != perc || (!bCharging && ++nCnt >= 4))
@@ -871,7 +903,7 @@ void calcTimeRemaining()
 
 #if CONFIG_TINYUSB_HID_ENABLED && USE_HID
     uint32_t nSecsTotal = binPayload.Capacity * binPayload.Health * 100 / nWattAvg / 3;
-    uint32_t nSecsToCharge = binPayload.Capacity * binPayload.Health * 100 / prefs.nPeakChargeWh / 3;
+    uint32_t nSecsToCharge = binPayload.Capacity * binPayload.Health * 100 / cfg.nPeakChargeWh / 3;
 
     if(nSecsToCharge > 0xFFFF)
       nSecsToCharge = 0xFFFF;
@@ -930,10 +962,10 @@ void levelChange()
 
 uint8_t battHealth()
 {
-  uint32_t ageDays = (time(nullptr) - prefs.initialDate) / (3600*24);
+  uint32_t ageDays = (time(nullptr) - cfg.initialDate) / (3600*24);
   uint16_t percDrop = (ageDays / 182); // about 2% per year
 
-  percDrop += prefs.nCycles / 50; // 1% per 50 cycles
+  percDrop += cfg.nCycles / 50; // 1% per 50 cycles
   return 99 - percDrop; // starting at 99%
 }
 
@@ -950,15 +982,15 @@ void usageAdd()
     return;
 
   // TODO: add an exponent - 100% = 2x 50% = 5x 30% ish
-  prefs.nPercentUsage += nPercUsed;
+  cfg.nPercentUsage += nPercUsed;
   nDrainStartPercent = binPayload.battPercent; // remove the added in case this is called again
 
-  if(prefs.nPercentUsage >= 100)
+  if(cfg.nPercentUsage >= 100)
   {
-    prefs.lastCycleDate = time(nullptr); // reset date of last full cycle
-    prefs.nCycles++; // Add 1 cycle for every 100% use
-    prefs.nPercentUsage -= 100;
-  }  
+    cfg.lastCycleDate = time(nullptr); // reset date of last full cycle
+    cfg.nCycles++; // Add 1 cycle for every 100% use
+    cfg.nPercentUsage -= 100;
+  }
 }
 
 void calcPercent()
@@ -977,10 +1009,10 @@ void calcPercent()
   {
     bNeedRestart = true; // sometimes the display glitches. Allowing it to timeout and restart causes inititialize commands to be resent
     usageAdd();
-    prefs.update();
+    cfg.update();
   }
 
-  int16_t nDays = (time(nullptr) - prefs.lastCycleDate) / (3600*24);
+  int16_t nDays = (time(nullptr) - cfg.lastCycleDate) / (3600*24);
   binPayload.b.needCycle = (nDays >= 90);
 
   if (binPayload.b.OnUPS)
@@ -1053,6 +1085,14 @@ void checkSerial()
         memcpy( (uint8_t*)&binData[2], &nWattHrArr, sizeof(nWattHrArr)); // last 24hrs of data
         Serial.write((uint8_t*)&binData, sizeof(binData));
       }
+      else if( buffer[0] == 0xAA && buffer[1] == 'W' && buffer[2] == 'H' && buffer[3] == 'D')
+      {
+        uint32_t binData[33];
+        binData[0] = 0x00DEBCAB;
+        binData[1] = cfg.ppkw; // may have more here in the future (value & 0xFF)
+        memcpy( (uint8_t*)&binData[2], &cfg.nDailyWh, sizeof(cfg.nDailyWh)); // full month data
+        Serial.write((uint8_t*)&binData, sizeof(binData));
+      }
       else if( buffer[0] == 0xAB && buffer[1] == 0xC2) // Delay power off from PC
       {
         nShutoffDelay = (buffer[2] << 8) | buffer[3];
@@ -1061,7 +1101,7 @@ void checkSerial()
         else
             nLongPress = (buffer[0] << 8) || buffer[1];
         usageAdd();
-        prefs.update();
+        cfg.update();
       }
       else
       {
