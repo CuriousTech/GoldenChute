@@ -63,6 +63,10 @@ function openSocket(){
       a.ppkwh.value=ppkwh=+d.ppkwh/100
       wmin=d.wmin
       wmax=d.wmax
+      tot=0
+      for(i=0;i<30;i++)
+        tot+=d.daily[i]
+      a.cost.innerHTML=(tot/1000).toFixed(1)+'KWh &nbsp; $'+(tot*ppkwh/1000).toFixed(2)
       drawstuff()
       break
     case 'alert':
@@ -345,6 +349,7 @@ openSocket()
 <tr><td>Last cycle: </td><td id="cycle"></td></tr>
 <tr><td>Health: </td><td id="health"></td></tr>
 <tr><td>Cycles: </td><td id="cycles"></td></tr>
+<tr><td>30 Day: </td><td id="cost"></td></tr>
 <tr><td>PPKWH <input id="ppkwh" type=text size=4 onChange="{setVar('ppkwh',(ppkwh=+this.value*100).toFixed() )}"> </td>
 <td><input id="myKey" name="key" type=text size=40 placeholder="password" style="width: 100px" onChange="{localStorage.setItem('key', key = document.all.myKey.value)}"></td></tr>
 </table>
