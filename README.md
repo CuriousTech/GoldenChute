@@ -36,9 +36,16 @@ Cut a notch in the rear panel to fit the USB cable.
 **Arduino:**  
 Settings for router SSID and SSID password are in Prefs.h, as well as the remote password for web control. If they aren't set or the SSID changes, EspTouch can be used.  
 Compiling the code should be easy. Most information is in UPS.ino, like where to get the libraries needed, and settings for the ESP32-C3-super mini such as enabling CDC on boot (for serial output).  
-There's code in UPS.ino to setup the initialDate, lastCycleDate, Cycles and percent to be used once, and commented out, but the Prefences seems to get overwritten when flashing new code. This will be rectified eventually.  
+There's code in UPS.ino to setup the initialDate, lastCycleDate, Cycles and percent to be used once, and commented out if desired.  
 
-There's also an ESP32-S3 super mini that is pin compatible, and has HID support for UPS emulation. It has 2 more pins (1 per side) that just overhang on the PCB. The current GPIO pins the code for the C3 are incorrect for the r3 board. There are likely different models of the S3 also. Just make sure 5V is pin 1, and GND is pin 2.  
+The ESP32-S3 super mini is mostly pin compatible, and has HID support for UPS emulation. It has 2 more pins (1 per side) that just overhang on the PCB. The current GPIO pins in the code for the C3 are incorrect for the r3 board. Just 1 pin is different. There are likely different models of the S3 also. Just make sure GND is pin 2.  
+  
+**Web page:**  
+The HIBERNATE and SHUTDOWN buttons send a message to the Goldenmate app to start the shutdown or hibernate process.  
+The POWER OFF button will hold the power button for 5 seconds to shut the UPS off. This will cut power to everything, including the ESP32 most likely.  
+RESET DISP causes a timeout in the display restart timer. When teh USP returns to AC power, once in a while the display malfunctions, but the data is still good. This just fixes it.  
+HID Warn % is what Windows uses to pop up a warning.  
+HID shutdown % is what Windows uses to shutdown when the battery level reaches that value. Set the warning above the shutdown.  
   
 **Windows app:**  
 Extract the exe and move it to somewhere like C:\Goldenmate.  The startup folder symbolic link will auto-generate to this path.  
@@ -51,6 +58,7 @@ Right-click in the window, or go to the tray, and right click the icon for the m
 If it connects, there should be a small red circle in the top left of the app. This will blink when data is received. Serial is the same.  
 COM Port (Note: using serial will cause the ESP32 to reset every time the app exits or another app accesses the COM port, which loses WH history and may get off track if charging).  
 The radio buttons allow selecting either COM or websocket.  
+ Note: When using HID, the Windows app will not be able to use serial, but can connect to the IP address. There's no resetting, which is better, but be careful of the HID shutdown % along with the app shutdown %. The app should be set higher, and HID can be fallback if it's not running for any reason.  
 Percent to shut down: Active (red bars left of battery in the main display and tray icon) and Inactive (right red bars) depends on whether the monitor is in standby. The depth of discharge (D.O.D.) determines the impact on health. When inactive, it should shut down at 70% for best health. When active, more time can be allowed for manual shutdown. The % is just the bar levels, not actual percent (which could possibly be inaccurate). There is a 10 second delay when it reaches the desired %, then it will shut down or hibernate/hibrid-sleep if that is set up properly and doesn't fail, otherwise it will shut down.  
 Note: Hibrid-sleep can wake immediately by odd USB devices if not set up properly. It should be tested before use. It will also slowly drain the battery over time.  
 Skip seconds: 0 will add data to the chart every second (total 24 hours). 1 would be 48 hours, but records peak values of 2 seconds.  
