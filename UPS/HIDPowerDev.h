@@ -93,6 +93,7 @@ public:
   void setMfgDate(const manufactDate& mfd);
   void setCycleCnt(uint16_t nCyc);
   void setTimes(uint16_t nFullTime, uint16_t nSecondsRemaining, uint16_t nSecsToCharge);
+  void setCapLimits(uint8_t remainCapLimit, uint8_t warnCapLimit);
 
 private:
   uint16_t _onGetDescriptor(uint8_t* buffer);
@@ -101,11 +102,14 @@ private:
 
   uint8_t _PresentStatus[2];
   uint8_t _RemainingCap = 100;
+  uint8_t _RemainCapLimit = 5;
+  uint8_t _WarnCapLimit = 10;
   uint16_t _nCycleCount = 1;
   uint16_t _nVolts;
   uint16_t _nTimeToFull = 60*60;
   uint16_t _nTimeToEmpty = 60*60;
   uint16_t _nTimeRemain = 60*60;
+
   manufactDate _mfgDate;
   USBHID HID;
 };
