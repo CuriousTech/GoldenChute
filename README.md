@@ -46,6 +46,8 @@ The POWER OFF button will hold the power button for 5 seconds to shut the UPS of
 RESET DISP causes a timeout in the display restart timer. When teh USP returns to AC power, once in a while the display malfunctions, but the data is still good. This just fixes it.  
 HID Warn % is what Windows uses to pop up a warning.  
 HID shutdown % is what Windows uses to shutdown when the battery level reaches that value. Set the warning above the shutdown.  
+PPKWH (price per killowatt hour) is used for, well, calcuating cost.  
+password needs to be the same as what's in config.h and needs to be set to allow any input (button presses or value changes). You can leave it blank any other time.  
   
 **Windows app:**  
 Extract the exe and move it to somewhere like C:\Goldenmate.  The startup folder symbolic link will auto-generate to this path.  
