@@ -20,7 +20,7 @@ public:
   uint16_t  sum = 0xAAAA;           // if sum is diiferent from memory struct, write
   char      szSSID[32] = ""; // SSID of router (blank for EspTouch)
   char      szSSIDPassword[64] = ""; // password for router
-  char      szName[32] = "UPS3"; // mDNS and OTA name
+  char      szName[32] = "UPS"; // mDNS and OTA name
   char      szPassword[32] = "password"; // password for web
   uint16_t  ppkw = 16; // cents per kwh
   uint32_t  initialDate = 0; // first use or mfg date
@@ -28,7 +28,9 @@ public:
   uint16_t  nCycles = 0;
   uint32_t  lastCycleDate = 0; // last cycle of 100% - should be cycled every 3 months
   uint8_t   nPeakChargeWh = 10;
-  uint8_t   res[15]; // change the length to force overwrite
+  uint8_t   RemainCapLimit = 5;
+  uint8_t   WarnCapLimit = 10;
+  uint8_t   res[13]; // change the length to force overwrite
   uint8_t   end;
 
   uint16_t  nDailyWh[31];
