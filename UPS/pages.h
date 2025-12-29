@@ -61,6 +61,8 @@ function openSocket(){
       a.health.innerHTML=d.health+'%'
       noData=+d.nodata
       a.ppkwh.value=ppkwh=+d.ppkwh/100
+      a.WCL.value=+d.wcl
+      a.RCL.value=+d.rcl
       wmin=d.wmin
       wmax=d.wmax
       tot=0
@@ -196,9 +198,7 @@ function drawstuff(){
 try {
   graph = $('#bars')
   var c=document.getElementById('bars')
-  rect=c.getBoundingClientRect()
-  canvasX=rect.x
-  canvasY=rect.y
+  var c2=document.getElementById('bars2')
 
   tipCanvas=document.getElementById("tip")
   tipCtx=tipCanvas.getContext("2d")
@@ -213,16 +213,64 @@ try {
   dots=[]
   date = new Date()
   ctx.lineWidth=9
-  draw_scale(d.wattArr,c.width,c.height,3,date.getHours(), +d.wh)
+  draw_scale(d.wattArr,c.width-5,c.height,3,date.getHours(), +d.wh)
+  dotStart=dots.length
   // request mousemove events
   graph.mousemove(function(e){handleMouseMove(e);})
+  graph2 = $('#bars2')
+  graph2.mousemove(function(e){handleMouseMove2(e);})
   // show tooltip when mouse hovers over dot
   function handleMouseMove(e){
     rect=c.getBoundingClientRect()
     mouseX=e.clientX-rect.x
     mouseY=e.clientY-rect.y
     var hit = false
-    for(i=0;i<dots.length;i++){
+    for(i=0;i<dotStart;i++){
+      dot = dots[i]
+      if(mouseX>=dot.x && mouseX<=dot.x2 && mouseY>=dot.y && mouseY<=dot.y2){
+        console.log(i)
+        tipCtx.clearRect(0,0,tipCanvas.width,tipCanvas.height)
+        tipCtx.fillStyle="#FFA"
+        tipCtx.textAlign="right"
+        tipCtx.lineWidth = 2
+        tipCtx.fillStyle = "#000000"
+        tipCtx.strokeStyle = '#333'
+        tipCtx.font = 'bold 9pt sans-serif'
+        if(+dot.tip>1000)
+         txt=(dot.tip/1000).toFixed(1)+' KWh'
+        else
+         txt=dot.tip+' Wh'
+        x=tipCanvas.width-3
+        tipCtx.fillText(txt,x, 12)
+        tipCtx.fillText('$'+(dot.tip*(0.15/1000)).toFixed(3),x,25)
+        tipCtx.fillText(dot.tip2+String.fromCharCode(10514),x,38)
+        tipCtx.fillText(dot.tip3+String.fromCharCode(10515),x,52)
+        hit=true
+        popup=document.getElementById("popup")
+        popup.style.top=(dot.y+rect.y+window.pageYOffset+20)+"px"
+        popup.style.left=(dot.x+rect.x)+"px"
+        break
+      }
+    }
+    if(!hit) popup.style.left="-200px"
+  }
+
+  c2=document.getElementById('bars2')
+  ctx=c2.getContext("2d")
+  ctx.fillStyle="#000"
+  ctx.fillRect(0,0,c.width,c.height)
+  ctx.fillStyle="#FFF"
+  ctx.font="7px sans-serif"
+
+  ctx.lineWidth=7
+  draw_scale(d.daily,c2.width-7,c2.height,3,date.getDate(), tot)
+
+  function handleMouseMove2(e){
+    rect=c2.getBoundingClientRect()
+    mouseX=e.clientX-rect.x
+    mouseY=e.clientY-rect.y
+    var hit = false
+    for(i=dotStart;i<dots.length;i++){
       dot = dots[i]
       if(mouseX>=dot.x && mouseX<=dot.x2 && mouseY>=dot.y && mouseY<=dot.y2){
         tipCtx.clearRect(0,0,tipCanvas.width,tipCanvas.height)
@@ -236,16 +284,14 @@ try {
          txt=(dot.tip/1000).toFixed(1)+' KWh'
         else
          txt=dot.tip+' Wh'
-        console.log('here')
         x=tipCanvas.width-3
         tipCtx.fillText(txt,x, 12)
         tipCtx.fillText('$'+(dot.tip*(0.15/1000)).toFixed(3),x,25)
-        tipCtx.fillText(dot.tip2+String.fromCharCode(10514),x,38)
-        tipCtx.fillText(dot.tip3+String.fromCharCode(10515),x,52)
         hit=true
         popup=document.getElementById("popup")
         popup.style.top=(dot.y+rect.y+window.pageYOffset+20)+"px"
         popup.style.left=(dot.x+rect.x)+"px"
+        break
       }
     }
     if(!hit) popup.style.left="-200px"
@@ -268,7 +314,6 @@ function draw_scale(arr,w,h,o,hi,cur)
   if(cur>max) max=cur
   if(min==2000) min=cur
   ctx.textAlign="center"
-  w -= 5
   for(i=0;i<arr.length;i++)
   {
     x=i*(w/arr.length)+8
@@ -342,6 +387,7 @@ openSocket()
 <canvas id="meter" width="270" height="105"></canvas>
 <canvas id="bars" width="270" height="120"></canvas>
 <div id="popup"><canvas id="tip" width=50 height=54></canvas></div>
+<canvas id="bars2" width="270" height="120"></canvas>
 </div>
 </td></tr>
 </table>
@@ -350,6 +396,8 @@ openSocket()
 <tr><td>Health: </td><td id="health"></td></tr>
 <tr><td>Cycles: </td><td id="cycles"></td></tr>
 <tr><td>30 Day: </td><td id="cost"></td></tr>
+<tr><td>HID Warning % </td><td><input id="WCL" type=text size=4 onChange="{setVar('wcl', this.value)}"></td></tr>
+<tr><td>HID Shutdown %</td><td><input id="RCL" type=text size=4 onChange="{setVar('rcl', this.value)}"></td></tr>
 <tr><td>PPKWH <input id="ppkwh" type=text size=4 onChange="{setVar('ppkwh',(ppkwh=+this.value*100).toFixed() )}"> </td>
 <td><input id="myKey" name="key" type=text size=40 placeholder="password" style="width: 100px" onChange="{localStorage.setItem('key', key = document.all.myKey.value)}"></td></tr>
 </table>
