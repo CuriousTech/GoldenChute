@@ -64,8 +64,8 @@ void Config::update() // write the settings and dailyWh if changed
     }
   }
 
-  uint16_t nNewSum = Fletcher16((uint8_t*)&nDailyWh, sizeof(nDailySum));
-
+  uint16_t nNewSum = Fletcher16((uint8_t*)&nDailyWh, sizeof(nDailyWh));
+  
   if(nNewSum != nDailySum)
   {
     nDailySum = nNewSum;
