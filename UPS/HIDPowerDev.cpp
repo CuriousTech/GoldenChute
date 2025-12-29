@@ -249,10 +249,10 @@ uint16_t HIDPowerDevice::_onGetFeature(uint8_t report_id, uint8_t* buffer, uint1
       buffer[0] = 1;
       return 1;
     case HID_PD_REMNCAPACITYLIMIT:
-      buffer[0] = 5;
+      buffer[0] = _RemainCapLimit;
       return 1;
     case HID_PD_WARNCAPACITYLIMIT:
-      buffer[0] = 10;
+      buffer[0] = _WarnCapLimit;
       return 1;
     case HID_PD_CONFIGVOLTAGE:
       {
@@ -343,6 +343,12 @@ void HIDPowerDevice::setTimes(uint16_t nFullTime, uint16_t nSecondsRemaining, ui
 void HIDPowerDevice::setCycleCnt(uint16_t nCyc)
 {
   _nCycleCount = nCyc;
+}
+
+void HIDPowerDevice::setCapLimits(uint8_t remainCapLimit, uint8_t warnCapLimit)
+{
+  _RemainCapLimit = remainCapLimit;
+  _WarnCapLimit = warnCapLimit;
 }
 
 uint16_t HIDPowerDevice::_onGetDescriptor(uint8_t* buffer)
