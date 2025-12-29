@@ -32,7 +32,7 @@ SOFTWARE.
 //  Model      Volts Amps    Wh      ~98% integer
 // 1000VA/600W 25.6V 6Ah   = 153.6Wh  150
 // 1000VA/800W 25.6V 9Ah   = 230.4Wh  226
-// 1500VA/1000W 51.2V 5.8Ah= 297Wh    291
+// 1500VA/1000W 51.2V 5.8Ah= 296Wh    291 (note: 1500 & 2000 models have a USB-HID type output AFAIK)
 // 1500VA/1200W 51.2V 6Ah  = 307Wh    301   (manual is incorrect, so I'm guessing)
 // 2000VA/1600W 51.2V 9Ah  = 460.8Wh  451
 #define BATTERY_WH 226
@@ -196,7 +196,10 @@ String dataJson()
   js.Var("health", battHealth());
   js.Var("nc", binPayload.b.needCycle);
   js.Var("so", nShutoffDelay);
+  js.Var("wcl", cfg.WarnCapLimit);
+  js.Var("rcl", cfg.RemainCapLimit);
   js.Array("daily", cfg.nDailyWh, 31);
+
   return js.Close();
 }
 
@@ -228,6 +231,8 @@ const char *jsonList1[] = {
   "restart",
   "ppkwh",
   "power",
+  "wcl",
+  "rcl",
   NULL
 };
 
@@ -307,6 +312,14 @@ void jsonCallback(int16_t iName, int iValue, char *psValue)
          nLongPress = 0; // cancel
       else
          nLongPress = iValue >> 16; // rando num to make it safer
+      break;
+    case 6: // wcl
+      cfg.WarnCapLimit = constrain(iValue, 5, 80);
+      Device.setCapLimits(cfg.RemainCapLimit, cfg.WarnCapLimit);
+      break;
+    case 7: // rcl
+      cfg.RemainCapLimit = constrain(iValue, 5, 80);
+      Device.setCapLimits(cfg.RemainCapLimit, cfg.WarnCapLimit);
       break;
   }
 }
@@ -547,6 +560,7 @@ void setup()
 
     cfg.nCycles = 3; // if you know how many cycles so far
     cfg.nPercentUsage = 10;  // copy these last 3 values from web page to preserve them before flashing
+
     cfg.update();
   }
 
@@ -559,6 +573,11 @@ void setup()
     .year = 2025 - 1980
   };
   Device.setMfgDate(mfd); // Manufactured date: June 1, 2025
+
+  cfg.RemainCapLimit = 5; // update for oler builds. Remove after use
+  cfg.WarnCapLimit = 10;  // " "
+
+  Device.setCapLimits(cfg.RemainCapLimit, cfg.WarnCapLimit);
   Device.begin();
 #endif
 }
@@ -630,7 +649,7 @@ void loop()
       ps.b.Discharging = binPayload.b.OnUPS;
       ps.b.BatteryPresent = 1;
       ps.b.FullyCharged = (binPayload.b.charging == 0 && binPayload.b.OnAC == 1);
-      ps.b.BelowRemainingCapacityLimit = (percent <= 4);
+      ps.b.BelowRemainingCapacityLimit = (percent <= cfg.RemainCapLimit);
       ps.b.ShutdownImminent = (percent <= 2 || nLongPress);
       ps.b.CommunicationLost = binPayload.b.noData;
       ps.b.ShutdownRequested = bRequestSD;
@@ -820,7 +839,7 @@ void loop()
       }
 
       // daily wh usage to cost per day
-      if(hour_save == 0)
+      if(hour_save == 0 && lTime.tm_year > 2024)
       {
         uint16_t nTotal = 0;
         uint8_t nCnt = 0;
