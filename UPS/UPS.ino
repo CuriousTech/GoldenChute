@@ -839,7 +839,7 @@ void loop()
       }
 
       // daily wh usage to cost per day
-      if(hour_save == 0 && lTime.tm_year > 2024)
+      if(hour_save == 0 && lTime.tm_year > 124)
       {
         uint16_t nTotal = 0;
         uint8_t nCnt = 0;
