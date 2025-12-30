@@ -194,6 +194,8 @@ function timeRem(secs)
   return str
 }
 
+mdays=[31,28,31,30,31,30,31,31,30,31,30,31]
+
 function drawstuff(){
 try {
   graph = $('#bars')
@@ -213,7 +215,7 @@ try {
   dots=[]
   date = new Date()
   ctx.lineWidth=9
-  draw_scale(d.wattArr,c.width-5,c.height,3,date.getHours(), +d.wh)
+  draw_scale(d.wattArr,c.width-5,c.height,date.getHours(),+d.wh,0,24)
   dotStart=dots.length
   // request mousemove events
   graph.mousemove(function(e){handleMouseMove(e);})
@@ -228,7 +230,6 @@ try {
     for(i=0;i<dotStart;i++){
       dot = dots[i]
       if(mouseX>=dot.x && mouseX<=dot.x2 && mouseY>=dot.y && mouseY<=dot.y2){
-        console.log(i)
         tipCtx.clearRect(0,0,tipCanvas.width,tipCanvas.height)
         tipCtx.fillStyle="#FFA"
         tipCtx.textAlign="right"
@@ -263,7 +264,7 @@ try {
   ctx.font="7px sans-serif"
 
   ctx.lineWidth=7
-  draw_scale(d.daily,c2.width-7,c2.height,3,date.getDate(), tot)
+  draw_scale(d.daily,c2.width-7,c2.height,date.getDate(),tot,1,mdays[date.getMonth()])
 
   function handleMouseMove2(e){
     rect=c2.getBoundingClientRect()
@@ -300,12 +301,12 @@ try {
 }catch(err){}
 }
 
-function draw_scale(arr,w,h,o,hi,cur)
+function draw_scale(arr,w,h,hi,cur,ofs,cnt)
 {
   max=0
   min=2000
   tot=0
-  for(i=0;i<arr.length;i++)
+  for(i=0;i<cnt;i++)
   {
     if(arr[i]>max) max=arr[i]
     if(arr[i]&&arr[i]<min) min=arr[i]
@@ -314,27 +315,27 @@ function draw_scale(arr,w,h,o,hi,cur)
   if(cur>max) max=cur
   if(min==2000) min=cur
   ctx.textAlign="center"
-  for(i=0;i<arr.length;i++)
+  for(i=0;i<cnt;i++)
   {
-    x=i*(w/arr.length)+8
+    x=i*(w/cnt)+8
     ctx.strokeStyle="#555"
     bh=arr[i]*(h-18)/max
-    y=(o+h-18)-bh
+    y=(3+h-18)-bh
     ctx.beginPath()
-    ctx.moveTo(x,o+h-18)
+    ctx.moveTo(x,3+h-18)
     ctx.lineTo(x,y)
     ctx.stroke()
     if(i==hi){
       ctx.strokeStyle='rgb(0,120,255)'
       bh=cur*(h-18)/max
-      y=(o+h-18)-bh
+      y=(3+h-18)-bh
       ctx.beginPath()
-      ctx.moveTo(x,o+h-18)
+      ctx.moveTo(x,3+h-18)
       ctx.lineTo(x,y)
       ctx.stroke()
     }
     ctx.strokeStyle="#FFF"
-    ctx.fillText(i,x,o+h-7)
+    ctx.fillText(i+ofs,x,3+h-7)
     if(arr[i])
       dots.push({
       x: x-(ctx.lineWidth/2),
