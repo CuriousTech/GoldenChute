@@ -822,9 +822,13 @@ void loop()
       }
     }
   
-    if(hour_save != lTime.tm_hour)
+    if(hour_save != lTime.tm_hour && lTime.tm_year > 124)
     {
       hour_save = lTime.tm_hour;
+      static int8_t nLastDay = -1;
+
+      if(nLastDay == -1)
+        nLastDay = lTime.tm_mday - 1;
 
       // hourly wh usage for day
       if(nWhCnt > 2)
@@ -839,16 +843,21 @@ void loop()
       }
 
       // daily wh usage to cost per day
-      if(hour_save == 0 && lTime.tm_year > 124)
+      if(hour_save == 0)
       {
         uint16_t nTotal = 0;
         uint8_t nCnt = 0;
+
         for(uint8_t i = 0; i < 24; i++)
         {
           nTotal += nWattHrArr[i];
           if(nWattHrArr[i]) nCnt++;
         }
-        cfg.nDailyWh[lTime.tm_mday - 1] = nTotal; // total for the day (1 day off, don't care)
+
+        if(nLastDay >= 0)
+          cfg.nDailyWh[nLastDay] = nTotal; // total for yesterday
+
+        nLastDay = lTime.tm_mday - 1;
 
         // Fill everything with 1st full day to kickstart it
         if((cfg.nDailyWh[0] == 0 || cfg.nDailyWh[1] == 0) && nCnt == 24)
@@ -860,7 +869,7 @@ void loop()
       nWattMin[hour_save] = 0;
       nWattMax[hour_save] = 0;
 
-      if(hour_save == 2)
+      if(hour_save == 2) // update time daily at DST change
       {
         configTime(0, 0, "pool.ntp.org");
         setenv("TZ", TZ, 1);
