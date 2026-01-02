@@ -66,9 +66,6 @@ function openSocket(){
       wmin=d.wmin
       wmax=d.wmax
       tot=0
-      for(i=0;i<30;i++)
-        tot+=d.daily[i]
-      a.cost.innerHTML=(tot/1000).toFixed(1)+'KWh &nbsp; $'+(tot*ppkwh/1000).toFixed(2)
       drawstuff()
       break
     case 'alert':
@@ -264,7 +261,8 @@ try {
   ctx.font="7px sans-serif"
 
   ctx.lineWidth=7
-  draw_scale(d.daily,c2.width-7,c2.height,date.getDate(),tot,1,mdays[date.getMonth()])
+  if(date.getFullYear()%4==0) mdays[1]=29
+  draw_scale(d.daily,c2.width-7,c2.height,date.getDate()-1,tot,1,mdays[date.getMonth()])
 
   function handleMouseMove2(e){
     rect=c2.getBoundingClientRect()
@@ -396,7 +394,6 @@ openSocket()
 <tr><td>Last cycle: </td><td id="cycle"></td></tr>
 <tr><td>Health: </td><td id="health"></td></tr>
 <tr><td>Cycles: </td><td id="cycles"></td></tr>
-<tr><td>30 Day: </td><td id="cost"></td></tr>
 <tr><td>HID Warning % </td><td><input id="WCL" type=text size=4 onChange="{setVar('wcl', this.value)}"></td></tr>
 <tr><td>HID Shutdown %</td><td><input id="RCL" type=text size=4 onChange="{setVar('rcl', this.value)}"></td></tr>
 <tr><td>PPKWH <input id="ppkwh" type=text size=4 onChange="{setVar('ppkwh',(ppkwh=+this.value*100).toFixed() )}"> </td>
