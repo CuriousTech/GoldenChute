@@ -188,7 +188,7 @@ String dataJson()
   js.Array("wmax", nWattMax, 24);
   uint8_t nPerc = cfg.nPercentUsage;
   if(binPayload.b.OnUPS) // add the live percent used
-    nPerc += 100 - binPayload.battPercent;
+    nPerc += nDrainStartPercent - binPayload.battPercent;
   js.Var("percuse", nPerc);
   js.Var("cycles", cfg.nCycles);
   js.Var("initdate", cfg.initialDate);
@@ -199,7 +199,6 @@ String dataJson()
   js.Var("wcl", cfg.WarnCapLimit);
   js.Var("rcl", cfg.RemainCapLimit);
   js.Array("daily", cfg.nDailyWh, 31);
-
   return js.Close();
 }
 
@@ -541,7 +540,7 @@ void setup()
   gpio_isr_handler_add(CS_PIN, CS_ISR, NULL);
   gpio_intr_enable(CS_PIN);
 
-  // Adjust init date and cycles manually (firmware updates erase Preferences, but shouldn't)
+  // Adjust init date and cycles manually (first use only)
   if(cfg.initialDate == 0)
   {
     tm initDate = {0};
@@ -558,8 +557,8 @@ void setup()
     initDate.tm_mday = 18; // day of month
     cfg.lastCycleDate = mktime(&initDate);
 
-    cfg.nCycles = 3; // if you know how many cycles so far
-    cfg.nPercentUsage = 10;  // copy these last 3 values from web page to preserve them before flashing
+    cfg.nCycles = 2; // if you know how many cycles so far
+    cfg.nPercentUsage = 10;  // copy these last 2 values from web page to preserve them before flashing
 
     cfg.update();
   }
@@ -573,10 +572,6 @@ void setup()
     .year = 2025 - 1980
   };
   Device.setMfgDate(mfd); // Manufactured date: June 1, 2025
-
-  cfg.RemainCapLimit = 5; // update for oler builds. Remove after use
-  cfg.WarnCapLimit = 10;  // " "
-
   Device.setCapLimits(cfg.RemainCapLimit, cfg.WarnCapLimit);
   Device.begin();
 #endif
@@ -994,7 +989,7 @@ uint8_t battHealth()
   uint16_t percDrop = (ageDays / 182); // about 2% per year
 
   percDrop += cfg.nCycles / 50; // 1% per 50 cycles
-  return 99 - percDrop; // starting at 99%
+  return 100 - percDrop; // starting at 100%
 }
 
 void usageAdd()
@@ -1025,12 +1020,16 @@ void calcPercent()
 {
   static uint8_t lvl = 0;
   static uint8_t cnt = 0;
-  static bool lastOnUPS;
+  static bool lastOnUPS = false;
+
+  if(binPayload.b.OnUPS && !lastOnUPS)
+  {
+    nDrainStartPercent = binPayload.battPercent; // beginning of discharge
+  }
 
   if (binPayload.b.battLevel != lvl || (binPayload.b.OnUPS && !lastOnUPS) ) // Switching to backup triggers level change to start accumulator
   {
     lvl = binPayload.b.battLevel;
-    nDrainStartPercent = binPayload.battPercent; // beginning of discharge
     levelChange();
   }
   else if (binPayload.b.OnUPS == 0 && lastOnUPS) // Switching off battery
@@ -1148,7 +1147,7 @@ bool decodeSegments(upsData& udata)
   uint8_t vOut[3];
   uint8_t wIn[4];
   uint8_t wOut[4];
-  static uint8_t lastBattDisp[4];
+  static uint8_t lastBattDisp[5];
 
   udata.b.noData = 0;
 
@@ -1218,23 +1217,22 @@ bool decodeSegments(upsData& udata)
   }
 
   // alternating display 1 (sometimes skips, probably not timed with output)
-  if(udata.b.battDisplay == 0 && (lastBattDisp[0] == 1 || lastBattDisp[1] == 1 || lastBattDisp[2] == 1 || lastBattDisp[3] == 1))
+  if(udata.b.battDisplay == 0 && (lastBattDisp[0] == 1 || lastBattDisp[1] == 1 || lastBattDisp[2] == 1 || lastBattDisp[3] == 1 || lastBattDisp[4] == 1))
       udata.b.battLevel = 1;
-  else if(udata.b.battDisplay == 1 && (lastBattDisp[0] == 0 || lastBattDisp[1] == 0 || lastBattDisp[2] == 0 || lastBattDisp[3] == 0))
+  else if(udata.b.battDisplay == 1 && (lastBattDisp[0] == 0 || lastBattDisp[1] == 0 || lastBattDisp[2] == 0 || lastBattDisp[3] == 0 || lastBattDisp[4] == 0))
       udata.b.battLevel = 1;
   // fix odd ...4 4 4 5 4... (this may occur on other levels)
-  else if(udata.b.battDisplay == 5 && lastBattDisp[0] == 4 && lastBattDisp[1] == 4 && lastBattDisp[2] == 4 && lastBattDisp[3] == 4)
+  else if(udata.b.battDisplay == 5 && lastBattDisp[0] == 4 && lastBattDisp[1] == 4 && lastBattDisp[2] == 4 && lastBattDisp[3] == 4 && lastBattDisp[4] == 4)
       udata.b.battLevel = 5;
   // alternating display 5
-  else if(udata.b.battDisplay == 5 && (lastBattDisp[0] == 4 || lastBattDisp[1] == 4 || lastBattDisp[2] == 4 || lastBattDisp[3] == 4))
+  else if(udata.b.battDisplay == 5 && (lastBattDisp[0] == 4 || lastBattDisp[1] == 4 || lastBattDisp[2] == 4 || lastBattDisp[3] == 4 || lastBattDisp[4] == 4))
       udata.b.battLevel = 6;
-  else if(udata.b.battDisplay == 4 && (lastBattDisp[0] == 5 || lastBattDisp[1] == 5 || lastBattDisp[2] == 5 || lastBattDisp[3] == 5))
+  else if(udata.b.battDisplay == 4 && (lastBattDisp[0] == 5 || lastBattDisp[1] == 5 || lastBattDisp[2] == 5 || lastBattDisp[3] == 5 || lastBattDisp[4] == 5))
       udata.b.battLevel = 6;
 
   static uint8_t idx = 0;
   lastBattDisp[idx] = udata.b.battDisplay;
-  idx++;
-  idx &= 3;
+  if(++idx > 4) idx = 0;
   
   return true;
 }
