@@ -79,7 +79,7 @@ int nWrongPass;
 int8_t nWsConnected;
 
 // The battery levels for each bar and blinking bar
-const byte battLevels[] = { 4, 9, 19, 39, 59, 79, 89, 100 };
+const byte battLevels[] = { 5, 10, 20, 40, 60, 80, 90, 100 };
 
 AsyncWebServer server( 80 );
 AsyncWebSocket ws("/ws"); // access at ws://[esp ip]/ws
@@ -125,11 +125,11 @@ struct flagBits{
   uint16_t error : 1; // WattsIn will be error #
   uint16_t charging : 1;
   uint16_t noData : 1; // display timeout indicator
-  uint16_t battDisplay : 3; // 0-5 (1 and 5 blink)
   uint16_t battLevel : 3; // 0-7 (used by the app for shutdown)
+  uint16_t battDisplay : 5; // Raw bits 0=top 4=bottom (0 and 4 blink)
   uint16_t needCycle : 1; // if it's been over 90 days with no 100% cycle
   uint16_t shuttingOff : 1; // shutoff timer is running
-  uint16_t reserved : 3;
+  uint16_t reserved : 1;
 };
 
 struct upsData
@@ -198,7 +198,6 @@ String dataJson()
   js.Var("so", nShutoffDelay);
   js.Var("wcl", cfg.WarnCapLimit);
   js.Var("rcl", cfg.RemainCapLimit);
-  js.Var("pcw", cfg.nPeakChargeWh); // just for checking later
   js.Array("daily", cfg.nDailyWh, 31);
   return js.Close();
 }
@@ -907,19 +906,11 @@ void calcTimeRemaining()
   static uint8_t perc = 0;
   static uint8_t nCnt = 0;
   bool bCharging = (binPayload.b.OnUPS || (binPayload.WattsIn - binPayload.WattsOut > 1));
-
-  if(bCharging)
-  {
-    uint8_t nChargeWh = binPayload.WattsIn - binPayload.WattsOut - 1; // assume 1W operating + charging
-
-    if(nChargeWh > cfg.nPeakChargeWh)
-      cfg.nPeakChargeWh = nChargeWh;
-  }
+  uint8_t nChargeWh = binPayload.WattsIn - binPayload.WattsOut - 1; // assume 1W operating + charging
 
   if (binPayload.battPercent != perc || (!bCharging && ++nCnt >= 4))
   {
     perc = binPayload.battPercent;
-    if (perc == 100) perc = 99;
 
     nCnt = 0;
 
@@ -927,7 +918,7 @@ void calcTimeRemaining()
 
 #if CONFIG_TINYUSB_HID_ENABLED && USE_HID
     uint32_t nSecsTotal = binPayload.Capacity * binPayload.Health * 100 / nWattAvg / 3;
-    uint32_t nSecsToCharge = binPayload.Capacity * binPayload.Health * 100 / cfg.nPeakChargeWh / 3;
+    uint32_t nSecsToCharge = binPayload.Capacity * binPayload.Health * 100 / nChargeWh / 3;
 
     if(nSecsToCharge > 0xFFFF)
       nSecsToCharge = 0xFFFF;
@@ -965,13 +956,13 @@ void levelChange()
     else
     {
       nLevelPercent = 0;
-      nBarPercent = battLevels[0]; // last 4%
+      nBarPercent = battLevels[0]; // last 5%
     }
     binPayload.battPercent = battLevels[binPayload.b.battLevel]; // incorrrect but using anyway
   }
   else // bar increment (start at bottom percent of next bar)
   {
-    binPayload.battPercent = nLevelPercent = battLevels[binPayload.b.battLevel - 1] + 1;
+    binPayload.battPercent = nLevelPercent = battLevels[binPayload.b.battLevel - 1];
     nBarPercent = battLevels[binPayload.b.battLevel] - nLevelPercent;
   }
 
@@ -1148,7 +1139,7 @@ bool decodeSegments(upsData& udata)
   uint8_t vOut[3];
   uint8_t wIn[4];
   uint8_t wOut[4];
-  static uint8_t lastBattDisp[4];
+  static uint8_t lastBattDisp[5];
 
   udata.b.noData = 0;
 
@@ -1197,48 +1188,35 @@ bool decodeSegments(upsData& udata)
   if(voltsOut && voltsOut < 125) // should never be 0
     udata.VoltsOut = voltsOut;
 
-  // decode battery bar by looking for top bar instead of all bits needed. Less misses
-  if(ups_nibble[9] & 1)
-    udata.b.battDisplay = 5;
-  else if(ups_nibble[8] & 1)
-    udata.b.battDisplay = 4;
-  else if(ups_nibble[8] & 2)
-    udata.b.battDisplay = 3;
-  else if(ups_nibble[8] & 4)
-    udata.b.battDisplay = 2;
-  else if(ups_nibble[8] & 8)
-    udata.b.battDisplay = 1;
-  else
-    udata.b.battDisplay = 0;
-
+  udata.b.battDisplay = (ups_nibble[8] << 1) | (ups_nibble[9] & 1);
+    
   switch(udata.b.battDisplay)
   {
-    case 0: udata.b.battLevel = 0; break; // <= 4%
-    case 1: udata.b.battLevel = 2; break; // blinking = 5-9%  solid = 10-19%
-    case 2: udata.b.battLevel = 3; break; // 30-39%
-    case 3: udata.b.battLevel = 4; break; // 40-59%
-    case 4: udata.b.battLevel = 5; break; // 60-79%
-    case 5: udata.b.battLevel = 7; break; // blinking = 80-89%  solid = 90-100%
+    case 0b00000: udata.b.battLevel = 0; break; // <= 4%
+    case 0b10000: udata.b.battLevel = 2; break; // blinking = 5-9%  solid = 10-19%
+    case 0b11000: udata.b.battLevel = 3; break; // 30-39%
+    case 0b11100: udata.b.battLevel = 4; break; // 40-59%
+    case 0b11110: udata.b.battLevel = 5; break; // 60-79%
+    case 0b11111: udata.b.battLevel = 7; break; // blinking = 80-89%  solid = 90-100%
   }
 
   // alternating display 1 (sometimes skips)
-  if(udata.b.battDisplay == 0 && (lastBattDisp[0] == 1 || lastBattDisp[1] == 1 || lastBattDisp[2] == 1 || lastBattDisp[3] == 1))
+  if(udata.b.battDisplay == 0b00000 && (lastBattDisp[0] == 0b10000 || lastBattDisp[1] == 0b10000 || lastBattDisp[2] == 0b10000 || lastBattDisp[3] == 0b10000 || lastBattDisp[4] == 0b10000))
       udata.b.battLevel = 1;
-  else if(udata.b.battDisplay == 1 && (lastBattDisp[0] == 0 || lastBattDisp[1] == 0 || lastBattDisp[2] == 0 || lastBattDisp[3] == 0))
+  else if(udata.b.battDisplay == 0b10000 && (lastBattDisp[0] == 0 || lastBattDisp[1] == 0 || lastBattDisp[2] == 0 || lastBattDisp[3] == 0 || lastBattDisp[4] == 0))
       udata.b.battLevel = 1;
   // fix odd ...4 4 4 5 4... (this may occur on other levels)
-  else if(udata.b.battDisplay == 5 && lastBattDisp[0] == 4 && lastBattDisp[1] == 4 && lastBattDisp[2] == 4 && lastBattDisp[3] == 4)
+  else if(udata.b.battDisplay == 0b11111 && lastBattDisp[0] == 0b11110 && lastBattDisp[1] == 0b11110 && lastBattDisp[2] == 0b11110 && lastBattDisp[3] == 0b11110 && lastBattDisp[4] == 0b11110)
       udata.b.battLevel = 5;
   // alternating display 5
-  else if(udata.b.battDisplay == 5 && (lastBattDisp[0] == 4 || lastBattDisp[1] == 4 || lastBattDisp[2] == 4 || lastBattDisp[3] == 4))
+  else if(udata.b.battDisplay == 0b11111 && (lastBattDisp[0] == 0b11110 || lastBattDisp[1] == 0b11110 || lastBattDisp[2] == 0b11110 || lastBattDisp[3] == 0b11110 || lastBattDisp[4] == 0b11110))
       udata.b.battLevel = 6;
-  else if(udata.b.battDisplay == 4 && (lastBattDisp[0] == 5 || lastBattDisp[1] == 5 || lastBattDisp[2] == 5 || lastBattDisp[3] == 5))
+  else if(udata.b.battDisplay == 0b11110 && (lastBattDisp[0] == 0b11111 || lastBattDisp[1] == 0b11111 || lastBattDisp[2] == 0b11111 || lastBattDisp[3] == 0b11111 || lastBattDisp[4] == 0b11111))
       udata.b.battLevel = 6;
 
   static uint8_t idx = 0;
   lastBattDisp[idx] = udata.b.battDisplay;
-  idx++;
-  idx &= 3;
+  if(++idx > 4) idx = 0;
   
   return true;
 }
