@@ -7,7 +7,7 @@
 
 #include <SPIFFS.h> // SPIFFS has no subdirs but takes less code space
 
-#define INTERNAL_FS SPIFFS // Make it the same as the partition scheme uploaded (SPIFFS, LittleFS, FFat)
+#define INTERNAL_FS SPIFFS // No need to upload or format SPIFFS
 
 class Config
 {
@@ -21,13 +21,13 @@ public:
   char      szSSID[32] = ""; // SSID of router (blank for EspTouch)
   char      szSSIDPassword[64] = ""; // password for router
   char      szName[32] = "UPS"; // mDNS and OTA name
-  char      szPassword[32] = "password"; // password for web
-  uint16_t  ppkw = 16; // cents per kwh
+  char      szPassword[32] = "passwword"; // password for web
+  uint16_t  ppkw = 160; // 1/10th cents per kwh
   uint32_t  initialDate = 0; // first use or mfg date
   uint16_t  nPercentUsage = 0;
   uint16_t  nCycles = 0;
   uint32_t  lastCycleDate = 0; // last cycle of 100% - should be cycled every 3 months
-  uint8_t   nPeakChargeWh = 10;
+  uint8_t   reserved1;
   uint8_t   RemainCapLimit = 5;
   uint8_t   WarnCapLimit = 10;
   uint8_t   res[13]; // change the length to force overwrite
