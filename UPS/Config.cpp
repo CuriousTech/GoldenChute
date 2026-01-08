@@ -68,13 +68,13 @@ void Config::update() // write the settings and dailyWh if changed
   
   if(nNewSum != nDailySum)
   {
-    nDailySum = nNewSum;
     File F;
   
     if(F = INTERNAL_FS.open(szDaily, "w"))
     {
       F.write((byte*)&nDailyWh, sizeof(nDailyWh));
       F.close();
+      nDailySum = nNewSum;
     }
   }
 }
