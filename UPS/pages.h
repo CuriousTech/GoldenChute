@@ -60,7 +60,7 @@ function openSocket(){
       a.cycles.innerHTML=d.cycles+' &nbsp; +'+d.percuse+'%'
       a.health.innerHTML=d.health+'%'
       noData=+d.nodata
-      a.ppkwh.value=ppkwh=+d.ppkwh/100
+      a.ppkwh.value=ppkwh=+d.ppkwh/1000
       a.WCL.value=+d.wcl
       a.RCL.value=+d.rcl
       wmin=d.wmin
@@ -160,12 +160,10 @@ function draw(){
   c.roundRect(114,36,48,66,3)
   c.stroke()
   y = 88
-  for(i = 0; i < 5; i++)
+  for(i = 4; i >= 0; i--)
   {
-    if(i >= upsState.BATT)
-      c.strokeRect(118+1, y+1, 40-2, 10-2)
-    else
-      c.fillRect(118, y, 40, 10)
+    c.fillStyle=(upsState.BATT & (1 << i))?'rgb(0,120,255)':'rgb(70,70,70)'
+    c.fillRect(118, y, 40, 10)
     y -= 12
   }
   c.strokeStyle='rgb(210,255,255)'
@@ -324,7 +322,7 @@ function draw_scale(arr,w,h,hi,cur,ofs,cnt)
     ctx.lineTo(x,y)
     ctx.stroke()
     if(i==hi){
-      ctx.strokeStyle='rgb(0,120,255)'
+      ctx.strokeStyle='rgba(0,120,255, 0.5)'
       bh=cur*(h-18)/max
       y=(3+h-18)-bh
       ctx.beginPath()
@@ -351,7 +349,7 @@ function draw_scale(arr,w,h,hi,cur,ofs,cnt)
   else
    txt=tot.toFixed(1)+' Wh'
   ctx.fillText(txt,w+5,8)
-  ctx.fillText('$'+(tot*ppkwh/1000).toFixed(3),w+4,18)
+  ctx.fillText('$'+(tot*ppkwh/1000).toFixed(2),w+4,18)
   ctx.fillText(max+String.fromCharCode(10514),w+4,33)
   ctx.fillText(min+String.fromCharCode(10515),w+4,43)
 }
@@ -396,7 +394,7 @@ openSocket()
 <tr><td>Cycles: </td><td id="cycles"></td></tr>
 <tr><td>HID Warning % </td><td><input id="WCL" type=text size=4 onChange="{setVar('wcl', this.value)}"></td></tr>
 <tr><td>HID Shutdown %</td><td><input id="RCL" type=text size=4 onChange="{setVar('rcl', this.value)}"></td></tr>
-<tr><td>PPKWH <input id="ppkwh" type=text size=4 onChange="{setVar('ppkwh',(ppkwh=+this.value*100).toFixed() )}"> </td>
+<tr><td>PPKWH <input id="ppkwh" type=text size=4 onChange="{setVar('ppkwh',(ppkwh=+this.value*1000).toFixed() )}"> </td>
 <td><input id="myKey" name="key" type=text size=40 placeholder="password" style="width: 100px" onChange="{localStorage.setItem('key', key = document.all.myKey.value)}"></td></tr>
 </table>
 </body>
