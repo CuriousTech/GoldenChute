@@ -23,7 +23,7 @@ SOFTWARE.
 
 // Goldenmate UPS with ESP32-C3-super mini or ESP32-S3-super mini
 
-// Build with Arduino IDE 1.8.19, ESP32 2.0.14 or 3.2.0
+// Build with Arduino IDE 1.8.19, ESP32 2.0.14 or 3.2.0-3.3.5
 // CPU Speed: 160MHz(C3) 240MHz(S3)
 // Partition: Default 4MB with spiffs
 // USB CDC On Boot: Enabled - for serial output over USB
@@ -198,6 +198,7 @@ String dataJson()
   js.Var("so", nShutoffDelay);
   js.Var("wcl", cfg.WarnCapLimit);
   js.Var("rcl", cfg.RemainCapLimit);
+  js.Var("pcw", cfg.nPeakChargeWh); // just for checking later
   js.Array("daily", cfg.nDailyWh, 31);
   return js.Close();
 }
@@ -451,7 +452,7 @@ static void CS_ISR(void *arg) // CS raises after 13th bit
   }
 
   ups_nibble[hx.h.addr] = hx.h.data;
-  if(hx.h.addr == 29) // last value complete
+  if(hx.h.addr == 28 || hx.h.addr == 29) // last value complete (added a 1ms delay in case 28 hits, usually does)
     bReady = true;
   hx.w = 0; // clear just in case
 }
@@ -610,9 +611,9 @@ void loop()
   // Last UPS LCD segment bits captured
   if(bReady)
   {
+    delay(1); // wait for 2nd hit
     bReady = false;
     spiMS = millis(); // time between each frame is ~980ms including the 14ms of 30 values
-
     if( decodeSegments(binPayload) )
     {
       sentMS = millis();
@@ -1147,7 +1148,7 @@ bool decodeSegments(upsData& udata)
   uint8_t vOut[3];
   uint8_t wIn[4];
   uint8_t wOut[4];
-  static uint8_t lastBattDisp[5];
+  static uint8_t lastBattDisp[4];
 
   udata.b.noData = 0;
 
@@ -1196,15 +1197,19 @@ bool decodeSegments(upsData& udata)
   if(voltsOut && voltsOut < 125) // should never be 0
     udata.VoltsOut = voltsOut;
 
-  switch( (ups_nibble[8] << 1) | (ups_nibble[9] & 1) )
-  {
-    case 0b00000: udata.b.battDisplay = 0; break;
-    case 0b10000: udata.b.battDisplay = 1; break;
-    case 0b11000: udata.b.battDisplay = 2; break;
-    case 0b11100: udata.b.battDisplay = 3; break;
-    case 0b11110: udata.b.battDisplay = 4; break;
-    case 0b11111: udata.b.battDisplay = 5; break;
-  }
+  // decode battery bar by looking for top bar instead of all bits needed. Less misses
+  if(ups_nibble[9] & 1)
+    udata.b.battDisplay = 5;
+  else if(ups_nibble[8] & 1)
+    udata.b.battDisplay = 4;
+  else if(ups_nibble[8] & 2)
+    udata.b.battDisplay = 3;
+  else if(ups_nibble[8] & 4)
+    udata.b.battDisplay = 2;
+  else if(ups_nibble[8] & 8)
+    udata.b.battDisplay = 1;
+  else
+    udata.b.battDisplay = 0;
 
   switch(udata.b.battDisplay)
   {
@@ -1216,23 +1221,24 @@ bool decodeSegments(upsData& udata)
     case 5: udata.b.battLevel = 7; break; // blinking = 80-89%  solid = 90-100%
   }
 
-  // alternating display 1 (sometimes skips, probably not timed with output)
-  if(udata.b.battDisplay == 0 && (lastBattDisp[0] == 1 || lastBattDisp[1] == 1 || lastBattDisp[2] == 1 || lastBattDisp[3] == 1 || lastBattDisp[4] == 1))
+  // alternating display 1 (sometimes skips)
+  if(udata.b.battDisplay == 0 && (lastBattDisp[0] == 1 || lastBattDisp[1] == 1 || lastBattDisp[2] == 1 || lastBattDisp[3] == 1))
       udata.b.battLevel = 1;
-  else if(udata.b.battDisplay == 1 && (lastBattDisp[0] == 0 || lastBattDisp[1] == 0 || lastBattDisp[2] == 0 || lastBattDisp[3] == 0 || lastBattDisp[4] == 0))
+  else if(udata.b.battDisplay == 1 && (lastBattDisp[0] == 0 || lastBattDisp[1] == 0 || lastBattDisp[2] == 0 || lastBattDisp[3] == 0))
       udata.b.battLevel = 1;
   // fix odd ...4 4 4 5 4... (this may occur on other levels)
-  else if(udata.b.battDisplay == 5 && lastBattDisp[0] == 4 && lastBattDisp[1] == 4 && lastBattDisp[2] == 4 && lastBattDisp[3] == 4 && lastBattDisp[4] == 4)
+  else if(udata.b.battDisplay == 5 && lastBattDisp[0] == 4 && lastBattDisp[1] == 4 && lastBattDisp[2] == 4 && lastBattDisp[3] == 4)
       udata.b.battLevel = 5;
   // alternating display 5
-  else if(udata.b.battDisplay == 5 && (lastBattDisp[0] == 4 || lastBattDisp[1] == 4 || lastBattDisp[2] == 4 || lastBattDisp[3] == 4 || lastBattDisp[4] == 4))
+  else if(udata.b.battDisplay == 5 && (lastBattDisp[0] == 4 || lastBattDisp[1] == 4 || lastBattDisp[2] == 4 || lastBattDisp[3] == 4))
       udata.b.battLevel = 6;
-  else if(udata.b.battDisplay == 4 && (lastBattDisp[0] == 5 || lastBattDisp[1] == 5 || lastBattDisp[2] == 5 || lastBattDisp[3] == 5 || lastBattDisp[4] == 5))
+  else if(udata.b.battDisplay == 4 && (lastBattDisp[0] == 5 || lastBattDisp[1] == 5 || lastBattDisp[2] == 5 || lastBattDisp[3] == 5))
       udata.b.battLevel = 6;
 
   static uint8_t idx = 0;
   lastBattDisp[idx] = udata.b.battDisplay;
-  if(++idx > 4) idx = 0;
+  idx++;
+  idx &= 3;
   
   return true;
 }
