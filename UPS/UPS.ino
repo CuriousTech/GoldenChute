@@ -313,12 +313,16 @@ void jsonCallback(int16_t iName, int iValue, char *psValue)
          nLongPress = iValue >> 16; // rando num to make it safer
       break;
     case 6: // wcl
-      cfg.WarnCapLimit = constrain(iValue, 5, 80);
+      cfg.WarnCapLimit = constrain(iValue, 5, 90);
+#if CONFIG_TINYUSB_HID_ENABLED && USE_HID
       Device.setCapLimits(cfg.RemainCapLimit, cfg.WarnCapLimit);
+#endif
       break;
     case 7: // rcl
       cfg.RemainCapLimit = constrain(iValue, 5, 80);
+#if CONFIG_TINYUSB_HID_ENABLED && USE_HID
       Device.setCapLimits(cfg.RemainCapLimit, cfg.WarnCapLimit);
+#endif
       break;
   }
 }
