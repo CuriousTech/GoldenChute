@@ -3,7 +3,7 @@ const char page_index[] PROGMEM = R"rawliteral(
 <html lang="en">
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>GoldenMate UPS</title>
+<title>Goldenmate UPS</title>
 <style>
 div,table{
 border-radius: 2px;
@@ -43,7 +43,7 @@ errorTxt=[
 
 function openSocket(){
  ws=new WebSocket("ws://"+window.location.host+"/ws")
-//  ws=new WebSocket("ws://192.168.31.155/ws")
+//  ws=new WebSocket("ws://192.168.31.230/ws")
   date = new Date()
   ws.onopen=function(evt){}
   ws.onclose=function(evt){alert("Connection closed");}
@@ -54,7 +54,7 @@ function openSocket(){
   {
     case 'state':
       dt=new Date(d.t*1000)
-      a.topbar.innerHTML=((+d.connected)?'PC Connected ':'PC Disonnected')+'&nbsp; '+dt.toLocaleTimeString()+' &nbsp;'+d.rssi+'dB'
+      topBar()
       dtc=new Date(d.cycledate*1000)
       a.cycle.innerHTML=((+d.nc)?'<span style=\"color: red;\">':'')+dtc.getFullYear()+'/'+(dtc.getMonth()+1)+'/'+dtc.getDate()
       a.cycles.innerHTML=d.cycles+' &nbsp; +'+d.percuse+'%'
@@ -73,13 +73,35 @@ function openSocket(){
       break
     case 'data':
       dt=new Date(d.t*1000)
-      a.topbar.innerHTML=((+d.connected)?'PC Connected ':'PC Disonnected')+'&nbsp; '+dt.toLocaleTimeString()+' &nbsp;'+d.rssi+'dB'
+      topBar()
       upsState=d
       noData=+d.nodata
+      shutoffDelay=+d.so
+      if(shutoffDelay)
+       a.PO.value=timeRem(shutoffDelay)+' CANCEL'
+      else
+       a.PO.value='POWER OFF'
       draw()
       break
   }
  }
+}
+
+function topBar()
+{
+  if(+d.HID && +d.connected)
+    conn = "HID+WiFi Connect"
+  else if(+d.connected && +d.sercon)
+    conn = "WiFi+Ser Connect"
+  else if(+d.connected)
+    conn = "WiFi Connected"
+  else if(+d.sercon)
+    conn = "Ser Connected"
+  else if(+d.HID)
+    conn = "HID Connected"
+  else
+    conn = "No Connection"
+  a.topbar.innerHTML=conn+'&nbsp; '+dt.toLocaleTimeString()+' &nbsp;'+d.rssi+'dB'
 }
 
 function setVar(varName, value)
@@ -98,7 +120,9 @@ function hibernate()
 
 function confirmPwr()
 {
-  if(confirm('Are you sure you want to turn the UPS off?'))
+  if(shutoffDelay)
+    setVar('power',0xABC20000)
+  else if(confirm('Are you sure you want to turn the UPS off?'))
     setVar('power',0xABC20003)
 }
 
@@ -375,7 +399,7 @@ openSocket()
 
 <tr><td>
   <input type="button" value="SHUTDOWN" onClick="{shutdown()}"> <input type="button" value="HIBERNATE" onClick="{hibernate()}"></td></tr> 
-  <tr><td><input type="button" value="RESET DISP" onClick="{setVar('restart',0)}"><input type="button" value="POWER OFF" onClick="{confirmPwr()}"></td></tr>
+  <tr><td><input type="button" value="RESET DISP" onClick="{setVar('restart',0)}"><input id="PO" type="button" value="POWER OFF" onClick="{confirmPwr()}"></td></tr>
 </table>
 
 <table width=278 >
