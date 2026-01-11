@@ -114,7 +114,7 @@ uint32_t nWattsPerBar;
 uint8_t nDrainStartPercent;
 
 uint32_t g_nSecondsRemaining;
-uint32_t nWattHrArr[24];
+uint16_t nWattHrArr[24];
 uint32_t nWattsAccumHr;
 uint16_t nWhCnt;
 uint16_t nWattMin[24], nWattMax[24];
@@ -195,10 +195,15 @@ String dataJson()
   js.Var("cycledate", cfg.lastCycleDate);
   js.Var("health", battHealth());
   js.Var("nc", binPayload.b.needCycle);
-  js.Var("so", nShutoffDelay);
   js.Var("wcl", cfg.WarnCapLimit);
   js.Var("rcl", cfg.RemainCapLimit);
   js.Array("daily", cfg.nDailyWh, 31);
+  js.Var("sercon", bGMFormatSerial);  // (bGMFormatSerial || otherMonitor)
+#if (CONFIG_TINYUSB_HID_ENABLED && USE_HID)
+  js.Var("HID", 1);
+#else
+  js.Var("HID", 0);
+#endif
   return js.Close();
 }
 
@@ -220,6 +225,7 @@ String statusJson()
   js.Var("error", binPayload.b.error);
   js.Var("nodata", binPayload.b.noData);
   js.Var("secsrem", g_nSecondsRemaining);
+  js.Var("so", nShutoffDelay);
   return js.Close();
 }
 
@@ -684,7 +690,6 @@ void loop()
   if(millis() - lastMS >= 1000 && lastMSbtn == 0) // only do stuff once per second and not while button is being pressed
   {
     lastMS = millis();
-
     getLocalTime(&lTime); // used globally (!first call can block for several seconds)
 
     if(binPayload.b.OnUPS && g_nSecondsRemaining) // make it count down
@@ -748,7 +753,7 @@ void loop()
           }
           else // generic text
           {
-            Serial.println("NODATA");          
+            Serial.println("NODATA");
           }
 #endif
         }
@@ -801,6 +806,9 @@ void loop()
           {
             cfg.lastCycleDate = time(nullptr); // set date of first use
           }
+          break;
+        case WL_NO_SSID_AVAIL:
+          Serial.println("No SSID avail");
           break;
         case WL_CONNECTION_LOST:
           break;
@@ -1120,11 +1128,15 @@ void checkSerial()
       {
         nShutoffDelay = (buffer[2] << 8) | buffer[3];
         if(nShutoffDelay == 0) // cancel poweroff
-            nLongPress = 0;
+          nLongPress = 0;
         else
-            nLongPress = (buffer[0] << 8) || buffer[1];
+          nLongPress = (buffer[0] << 8) || buffer[1];
         usageAdd();
         cfg.update();
+      }
+      else if( buffer[0] == 0xAB && buffer[1] == 0xC3) // App closing
+      {
+        bGMFormatSerial = false;
       }
       else
       {
