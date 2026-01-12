@@ -114,7 +114,7 @@ uint32_t nWattsPerBar;
 uint8_t nDrainStartPercent;
 
 uint32_t g_nSecondsRemaining;
-uint16_t nWattHrArr[24];
+uint32_t nWattHrArr[24];
 uint32_t nWattsAccumHr;
 uint16_t nWhCnt;
 uint16_t nWattMin[24], nWattMax[24];
