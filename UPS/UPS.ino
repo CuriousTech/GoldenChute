@@ -112,9 +112,8 @@ uint8_t nBarPercent;
 uint32_t nWattsAccum;
 uint32_t nWattsPerBar;
 uint8_t nDrainStartPercent;
+uint32_t nSecondsRemaining;
 
-uint32_t g_nSecondsRemaining;
-uint32_t nWattHrArr[24];
 uint32_t nWattsAccumHr;
 uint16_t nWhCnt;
 uint16_t nWattMin[24], nWattMax[24];
@@ -148,6 +147,15 @@ struct upsData
 }; // 16 bytes
 
 upsData binPayload;
+
+struct upsHourlyWh
+{
+  uint32_t head;
+  uint32_t now;
+  uint16_t arr[24];
+};
+
+upsHourlyWh hourlyWh;
 
 // cccaaaaaadddd
 struct holtekBits{
@@ -183,7 +191,7 @@ String dataJson()
   js.Var("nodata", binPayload.b.noData);
   js.Var("ppkwh", cfg.ppkw);
   js.Var("wh", nWattsAccumHr / 3621); // usage this hour
-  js.Array("wattArr", nWattHrArr, 24);
+  js.Array("wattArr", hourlyWh.arr, 24);
   js.Array("wmin", nWattMin, 24);
   js.Array("wmax", nWattMax, 24);
   uint8_t nPerc = cfg.nPercentUsage;
@@ -224,7 +232,7 @@ String statusJson()
   js.Var("battPercent", binPayload.battPercent );
   js.Var("error", binPayload.b.error);
   js.Var("nodata", binPayload.b.noData);
-  js.Var("secsrem", g_nSecondsRemaining);
+  js.Var("secsrem", nSecondsRemaining);
   js.Var("so", nShutoffDelay);
   return js.Close();
 }
@@ -400,11 +408,9 @@ void onBinEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEvent
         {
           case 'W': // send wh array
             {
-              uint32_t binData[26];
-              binData[0] = 0x00DEBCAA;
-              binData[1] = nWattsAccumHr / 3621; // current this hour
-              memcpy( (uint8_t*)&binData[2], &nWattHrArr, sizeof(nWattHrArr));
-              client->binary((uint8_t*)&binData, sizeof(binData));
+              hourlyWh.head = 0x00DEBCAA;
+              hourlyWh.now = nWattsAccumHr / 3621; // current this hour
+              client->binary((uint8_t*)&hourlyWh, sizeof(hourlyWh));
             }
             break;
           case 'D':
@@ -551,7 +557,7 @@ void setup()
   gpio_intr_enable(CS_PIN);
 
   // Adjust init date and cycles manually (first use only)
-  if(cfg.initialDate == 0)
+  if(cfg.initialDate == 0) // <-comment out to set again, then remove comment, flash again
   {
     tm initDate = {0};
     // set first used date
@@ -692,8 +698,8 @@ void loop()
     lastMS = millis();
     getLocalTime(&lTime); // used globally (!first call can block for several seconds)
 
-    if(binPayload.b.OnUPS && g_nSecondsRemaining) // make it count down
-      g_nSecondsRemaining--;
+    if(binPayload.b.OnUPS && nSecondsRemaining) // make it count down
+      nSecondsRemaining--;
 
     static uint8_t nSSRsecs = 1;
     static bool bRestartingDisplay = false;
@@ -797,15 +803,6 @@ void loop()
           configTime(0, 0, "pool.ntp.org");
           setenv("TZ", TZ, 1);
           tzset();
-
-          if(cfg.initialDate == 0)
-          {
-            cfg.initialDate = time(nullptr); // set date of first use
-          }
-          if(cfg.lastCycleDate == 0)
-          {
-            cfg.lastCycleDate = time(nullptr); // set date of first use
-          }
           break;
         case WL_NO_SSID_AVAIL:
           Serial.println("No SSID avail");
@@ -844,7 +841,7 @@ void loop()
         if(nWhCnt > 3618) nDiv = nWhCnt; // Usually 3621-3622, but starting mid-hour is lower
         int8_t h = lTime.tm_hour - 1; // last hour
         if(h < 0) h = 23;
-        nWattHrArr[h] = nWattsAccumHr / nDiv;
+        hourlyWh.arr[h] = nWattsAccumHr / nDiv;
         nWattsAccumHr = 0;
         nWhCnt = 0;
       }
@@ -857,8 +854,8 @@ void loop()
 
         for(uint8_t i = 0; i < 24; i++)
         {
-          nTotal += nWattHrArr[i];
-          if(nWattHrArr[i]) nCnt++;
+          nTotal += hourlyWh.arr[i];
+          if(hourlyWh.arr[i]) nCnt++;
         }
 
         if(nLastDay >= 0)
@@ -926,7 +923,7 @@ void calcTimeRemaining()
 
     nCnt = 0;
 
-    g_nSecondsRemaining = binPayload.Capacity * binPayload.Health * perc / nWattAvg / 3;
+    nSecondsRemaining = binPayload.Capacity * binPayload.Health * perc / nWattAvg / 3;
 
 #if CONFIG_TINYUSB_HID_ENABLED && USE_HID
     uint32_t nSecsTotal = binPayload.Capacity * binPayload.Health * 100 / nWattAvg / 3;
@@ -1110,17 +1107,15 @@ void checkSerial()
       }
       else if( buffer[0] == 0xAA && buffer[1] == 'W' && buffer[2] == 'H' && buffer[3] == 0)
       {
-        uint32_t binData[26];
-        binData[0] = 0x00DEBCAA;
-        binData[1] = nWattsAccumHr / 3621; // current this hour
-        memcpy( (uint8_t*)&binData[2], &nWattHrArr, sizeof(nWattHrArr)); // last 24hrs of data
-        Serial.write((uint8_t*)&binData, sizeof(binData));
+        hourlyWh.head = 0x00DEBCAA;
+        hourlyWh.now = nWattsAccumHr / 3621; // current this hour
+        Serial.write((uint8_t*)&hourlyWh, sizeof(hourlyWh));
       }
       else if( buffer[0] == 0xAA && buffer[1] == 'W' && buffer[2] == 'H' && buffer[3] == 'D')
       {
         uint32_t binData[33];
         binData[0] = 0x00DEBCAB;
-        binData[1] = cfg.ppkw; // may have more here in the future (value & 0xFF)
+        binData[1] = cfg.ppkw; // may have more here in the future (ppkw = value & 0xFFFF)
         memcpy( (uint8_t*)&binData[2], &cfg.nDailyWh, sizeof(cfg.nDailyWh)); // full month data
         Serial.write((uint8_t*)&binData, sizeof(binData));
       }
