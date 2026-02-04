@@ -189,7 +189,8 @@ String dataJson()
   js.Var("connected", binClientCnt);
   js.Var("nodata", binPayload.b.noData);
   js.Var("ppkwh", cfg.ppkw);
-  js.Var("wh", nWattsAccumHr / nWhCnt); // usage this hour in Wh
+  if(nWhCnt)
+    js.Var("wh", nWattsAccumHr / nWhCnt); // usage this hour in Wh
   js.Array("wattArr", hourlyWh.arr, 24);
   js.Array("wmin", nWattMin, 24);
   js.Array("wmax", nWattMax, 24);
@@ -1125,7 +1126,8 @@ void checkSerial()
       else if( buffer[0] == 0xAA && buffer[1] == 'W' && buffer[2] == 'H' && buffer[3] == 0)
       {
         hourlyWh.head = 0x00DEBCAA;
-        hourlyWh.now = nWattsAccumHr / nWhCnt; // current this hour
+        if(nWhCnt)
+          hourlyWh.now = nWattsAccumHr / nWhCnt; // current this hour
         Serial.write((uint8_t*)&hourlyWh, sizeof(hourlyWh));
       }
       else if( buffer[0] == 0xAA && buffer[1] == 'W' && buffer[2] == 'H' && buffer[3] == 'D')
