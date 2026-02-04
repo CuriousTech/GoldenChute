@@ -726,7 +726,7 @@ void loop()
           nShutoffDelay = 0;
           nLongPress = 0;
         }
-        else if(nLongPress == 0xABC2 && wattArr[0] < cfg.ShutoffWattThresh && wattArr[1] < cfg.ShutoffWattThresh && wattArr[2] < cfg.ShutoffWattThresh && wattArr[3] < fg.ShutoffWattThresh)
+        else if(nLongPress == 0xABC2 && wattArr[0] < cfg.ShutoffWattThresh && wattArr[1] < cfg.ShutoffWattThresh && wattArr[2] < cfg.ShutoffWattThresh && wattArr[3] < cfg.ShutoffWattThresh)
         {
           nShutoffDelay = 5; // bump back up to 5 seconds, and time down again until it's low enough
         }
