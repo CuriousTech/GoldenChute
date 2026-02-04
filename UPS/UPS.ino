@@ -24,9 +24,9 @@ SOFTWARE.
 // Goldenmate UPS with ESP32-C3-super mini or ESP32-S3-super mini
 
 // Build with Arduino IDE 1.8.19, ESP32 2.0.14 or 3.2.0-3.3.5
-// CPU Speed: 160MHz(C3) 240MHz(S3)
-// Partition: Default 4MB with spiffs
+// CPU Speed: 160MHz(C3) 240MHz(S3) (Warning: These both seem to burn up at the highest clock speed)
 // USB CDC On Boot: Enabled - for serial output over USB
+// Partition: Default 4MB with spiffs
 
 ///////////////////////////////////////////////////
 //  Model      Volts Amps    Wh      ~98% integer
@@ -38,7 +38,6 @@ SOFTWARE.
 #define BATTERY_WH 226
 
 #define TZ  "EST5EDT,M3.2.0,M11.1.0"  // https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
-
 
 #include <ESPAsyncWebServer.h> // https://github.com/ESP32Async/ESPAsyncWebServer (3.7.2) and AsyncTCP (3.4.4)
 #include <time.h>
@@ -190,7 +189,7 @@ String dataJson()
   js.Var("connected", binClientCnt);
   js.Var("nodata", binPayload.b.noData);
   js.Var("ppkwh", cfg.ppkw);
-  js.Var("wh", nWattsAccumHr / 3621); // usage this hour
+  js.Var("wh", nWattsAccumHr / nWhCnt); // usage this hour in Wh
   js.Array("wattArr", hourlyWh.arr, 24);
   js.Array("wmin", nWattMin, 24);
   js.Array("wmax", nWattMax, 24);
@@ -205,6 +204,7 @@ String dataJson()
   js.Var("nc", binPayload.b.needCycle);
   js.Var("wcl", cfg.WarnCapLimit);
   js.Var("rcl", cfg.RemainCapLimit);
+  js.Var("swt", cfg.ShutoffWattThresh);
   js.Array("daily", cfg.nDailyWh, 31);
   js.Var("sercon", bGMFormatSerial);  // (bGMFormatSerial || otherMonitor)
 #if (CONFIG_TINYUSB_HID_ENABLED && USE_HID)
@@ -246,6 +246,7 @@ const char *jsonList1[] = {
   "power",
   "wcl",
   "rcl",
+  "swt",
   NULL
 };
 
@@ -337,6 +338,9 @@ void jsonCallback(int16_t iName, int iValue, char *psValue)
 #if CONFIG_TINYUSB_HID_ENABLED && USE_HID
       Device.setCapLimits(cfg.RemainCapLimit, cfg.WarnCapLimit);
 #endif
+      break;
+    case 8: // swt
+      cfg.ShutoffWattThresh = iValue;
       break;
   }
 }
@@ -529,6 +533,8 @@ void setup()
     request->send(response);
   });
 
+  server.serveStatic("/", INTERNAL_FS, "/");
+
   server.onNotFound([](AsyncWebServerRequest *request){
     request->send(404);
   });
@@ -584,7 +590,7 @@ void setup()
 #if CONFIG_TINYUSB_HID_ENABLED && USE_HID
   const manufactDate mfd ={
     .day = 1, // 1~31
-    .month = 5, // 0~11
+    .month = 6 - 1, // 0~11
     .year = 2025 - 1980
   };
   Device.setMfgDate(mfd); // Manufactured date: June 1, 2025
@@ -609,7 +615,7 @@ void loop()
     uint32_t ms = (nLongPress == 0xABC2) ? 5100:500;
     if(millis() - lastMSbtn > ms)
     {
-      digitalWrite(SSR, LOW); // release button after 500ms
+      digitalWrite(SSR, LOW); // release button after 500ms (or 5.1 seconds for shutoff)
       nLongPress = 0;
       lastMSbtn = 0;
       usageAdd(); // add up in case it's powered off
@@ -704,6 +710,13 @@ void loop()
     static uint8_t nSSRsecs = 1;
     static bool bRestartingDisplay = false;
 
+    static uint8_t wattArr[4] = {255, 255, 255, 255};
+    static uint8_t waIdx = 0;
+
+    wattArr[waIdx] = binPayload.WattsOut;
+    waIdx++;
+    waIdx &= 3;
+
     if(nLongPress == 0xABC2 && nShutoffDelay)
     {
       if(--nShutoffDelay == 0) // Shutoff delay from PC or web
@@ -712,6 +725,10 @@ void loop()
         {
           nShutoffDelay = 0;
           nLongPress = 0;
+        }
+        else if(nLongPress == 0xABC2 && wattArr[0] < cfg.ShutoffWattThresh && wattArr[1] < cfg.ShutoffWattThresh && wattArr[2] < cfg.ShutoffWattThresh && wattArr[3] < fg.ShutoffWattThresh)
+        {
+          nShutoffDelay = 5; // bump back up to 5 seconds, and time down again until it's low enough
         }
         else
         {
@@ -1108,7 +1125,7 @@ void checkSerial()
       else if( buffer[0] == 0xAA && buffer[1] == 'W' && buffer[2] == 'H' && buffer[3] == 0)
       {
         hourlyWh.head = 0x00DEBCAA;
-        hourlyWh.now = nWattsAccumHr / 3621; // current this hour
+        hourlyWh.now = nWattsAccumHr / nWhCnt; // current this hour
         Serial.write((uint8_t*)&hourlyWh, sizeof(hourlyWh));
       }
       else if( buffer[0] == 0xAA && buffer[1] == 'W' && buffer[2] == 'H' && buffer[3] == 'D')
@@ -1164,8 +1181,8 @@ bool decodeSegments(upsData& udata)
   udata.Capacity = BATTERY_WH;
   udata.Health = battHealth();
   udata.b.error = 0;
-  udata.b.OnUPS = (ups_nibble[18] & 8) ? true:false;
-  udata.b.OnAC = (ups_nibble[25] & 8) ? true:false;
+  udata.b.OnUPS = (ups_nibble[18] & 8) ? 1:0;
+  udata.b.OnAC = (ups_nibble[25] & 8) ? 1:0;
 
   if(udata.b.OnAC && udata.b.OnUPS) // bad data
     udata.b.OnUPS = 0;
