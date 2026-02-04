@@ -43,7 +43,8 @@ The ESP32-S3 super mini is mostly pin compatible, and has HID support for UPS em
 **Web page:**  
 The HIBERNATE and SHUTDOWN buttons send a message to the Goldenmate app to start the shutdown or hibernate process.  
 The POWER OFF button will hold the power button for 5 seconds to shut the UPS off. This will cut power to everything, including the ESP32 most likely.  
-RESET DISP causes a timeout in the display restart timer. When teh USP returns to AC power, once in a while the display malfunctions, but the data is still good. This just fixes it.  
+RESET DISP causes a timeout in the display restart timer. When the USP returns to AC power, once in a while the display malfunctions, but the data is still good. This just fixes it.  
+Shutoff Watt Threshold prevents the delayed shutoff from operating until the watts out drops below the set value.  
 HID Warn % is what Windows uses to pop up a warning.  
 HID shutdown % is what Windows uses to shutdown when the battery level reaches that value. Set the warning above the shutdown. These are overridden by settings in Windows, though, so probably not useful.  
 PPKWH (price per killowatt hour) is used for, well, calcuating cost.  
@@ -64,7 +65,6 @@ The radio buttons allow selecting either COM or websocket.
 Percent to shut down: Active (red bars left of battery in the main display and tray icon) and Inactive (right red bars) depends on whether the monitor is in standby. The depth of discharge (D.O.D.) determines the impact on health. When inactive, it should shut down at 70% for best health. When active, more time can be allowed for manual shutdown. The % is just the bar levels, not actual percent (which could possibly be inaccurate). There is a 10 second delay when it reaches the desired %, then it will shut down or hibernate/hibrid-sleep if that is set up properly and doesn't fail, otherwise it will shut down.  
 Note: Hibrid-sleep can wake immediately by odd USB devices if not set up properly. It should be tested before use. It will also slowly drain the battery over time.  
 Skip seconds: 0 will add data to the chart every second (total 24 hours). 1 would be 48 hours, but records peak values of 2 seconds.  
-The web page also allows manual remote shutdown/hibernate. The password will need to be the same here as in Config.h  Test it once to esnure it works properly.  
 Alerts currently just cause the window to popup and show red text over the "Input" label, such as "Serial timeout/in use" or WebSocket disconnected" with annoying audio.  
 Power off after [30] seconds: Will turn the UPS power off (cutting power to everything on it) the delayed time (15 secs to 60 mins) after the PC begins shutdown/hibernate.  
  Note:The ESP will also lose power, so there's no way to remotely power it back on.  
