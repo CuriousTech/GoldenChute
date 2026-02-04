@@ -43,7 +43,7 @@ errorTxt=[
 
 function openSocket(){
  ws=new WebSocket("ws://"+window.location.host+"/ws")
-//  ws=new WebSocket("ws://192.168.31.230/ws")
+//  ws=new WebSocket("ws://192.168.50.199/ws")
   date = new Date()
   ws.onopen=function(evt){}
   ws.onclose=function(evt){alert("Connection closed");}
@@ -63,6 +63,7 @@ function openSocket(){
       a.ppkwh.value=ppkwh=+d.ppkwh/1000
       a.WCL.value=+d.wcl
       a.RCL.value=+d.rcl
+      a.SWT.value=+d.swt
       wmin=d.wmin
       wmax=d.wmax
       tot=0
@@ -173,15 +174,32 @@ function draw(){
   c.fillText(timeRem(+d.secsrem), 138, 27)
   c.textAlign="right"
 
-  c.font='italic 22pt sans-serif'
+  c.font='italic 18pt sans-serif'
   if(upsState.voltsIn)
-    c.fillText(upsState.voltsIn+'v', 84, 46)
-  c.fillText(upsState.voltsOut+'v', 256, 46)
-  c.fillText(upsState.wattsIn+'w', 84, 86)
-  c.fillText(upsState.wattsOut+'w', 256, 86)
+  {
+    DrawNumbers(upsState.voltsIn, 30, 32)
+    c.fillText('v', 93, 50)
+  }
+
+  DrawNumbers(upsState.voltsOut, 194, 32)
+  DrawNumbers(upsState.wattsIn, 30, 71)
+  DrawNumbers(upsState.wattsOut, 194, 71)
+  c.fillText('v', 256, 50)
+  c.fillText('w', 98, 89)
+  c.fillText('w', 260, 89)
 
   c.fillStyle=c.strokeStyle='rgb(0,120,255)'
+  c.beginPath()
   c.roundRect(114,36,48,66,3)
+  c.stroke()
+  c.strokeStyle='rgb(210,255,255)'
+  c.lineWidth=2
+
+  c.beginPath()
+  c.moveTo(18,20)
+  c.lineTo(90,20)
+  c.moveTo(188,20)
+  c.lineTo(268,20)
   c.stroke()
   y = 88
   for(i = 4; i >= 0; i--)
@@ -190,12 +208,40 @@ function draw(){
     c.fillRect(118, y, 40, 10)
     y -= 12
   }
-  c.strokeStyle='rgb(210,255,255)'
+}
+
+function DrawNumbers(dwValue, x, y)
+{
+  szN = dwValue.toString()
+
+  for(i=2;i>=0;i--)
+    DrawDigit(szN.charCodeAt(i)-48, i, x, y);
+}
+
+function DrawDigit(digit, pos, x, y)
+{
+  c.lineCap='round'
+  c.lineWidth=3
+
+  h = 12
+  h2 = h*2
+  w = 10
+            // 0    1     2     3      4     5     6     7     8     9
+  bitmask = [0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F]
+
+  bit = bitmask[digit]
+  x += (pos*16)
+  yh = y + h
+  yh2= y + h2
+  xw = x + w
   c.beginPath()
-  c.moveTo(18,20)
-  c.lineTo(90,20)
-  c.moveTo(188,20)
-  c.lineTo(268,20)
+  if(bit&0x01){c.moveTo(x+ 3,y);c.lineTo(xw+1, y)} // T
+  if(bit&0x02){c.moveTo(xw+2,y +1);c.lineTo(xw+1, yh-1)} // R1
+  if(bit&0x04){c.moveTo(xw+1,yh+1);c.lineTo(xw, yh2-1)} // R2
+  if(bit&0x08){c.moveTo(x+ 1,yh2);c.lineTo(xw-1, yh2)} // B
+  if(bit&0x10){c.moveTo(x+ 1,yh+1);c.lineTo(x, yh2-1)} // L2
+  if(bit&0x20){c.moveTo(x+ 2,y+1);c.lineTo(x +1, yh-1)} // L1
+  if(bit&0x40){c.moveTo(x+ 2,yh );c.lineTo(xw,yh)} // C
   c.stroke()
 }
 
@@ -416,8 +462,9 @@ openSocket()
 <tr><td>Last cycle: </td><td id="cycle"></td></tr>
 <tr><td>Health: </td><td id="health"></td></tr>
 <tr><td>Cycles: </td><td id="cycles"></td></tr>
-<tr><td>HID Warning % </td><td><input id="WCL" type=text size=4 onChange="{setVar('wcl', this.value)}"></td></tr>
-<tr><td>HID Shutdown %</td><td><input id="RCL" type=text size=4 onChange="{setVar('rcl', this.value)}"></td></tr>
+<tr><td>Shutoff Watt Thresh</td><td><input id="SWT" type=text size=4 onChange="{setVar('swt', this.value)}">W</td></tr>
+<tr><td>HID Warning</td><td><input id="WCL" type=text size=4 onChange="{setVar('wcl', this.value)}">%</td></tr>
+<tr><td>HID Shutdown</td><td><input id="RCL" type=text size=4 onChange="{setVar('rcl', this.value)}">%</td></tr>
 <tr><td>PPKWH <input id="ppkwh" type=text size=4 onChange="{setVar('ppkwh',(ppkwh=+this.value*1000).toFixed() )}"> </td>
 <td><input id="myKey" name="key" type=text size=40 placeholder="password" style="width: 100px" onChange="{localStorage.setItem('key', key = document.all.myKey.value)}"></td></tr>
 </table>
