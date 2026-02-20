@@ -63,6 +63,8 @@ SOFTWARE.
 #define LED     48
 #define SSR     12
 #define USE_HID 1  // Uncomment for HID device
+#else
+static_assert(FALSE, "Set pins for new device");
 #endif
 
 // Auto-enabled when building for ESP32-S3 and uses HID
@@ -808,6 +810,8 @@ void loop()
 
     if(bConfigDone)
     {
+      static uint8_t nReconnCnt = 5;
+
       switch(WiFi.status())
       {
         case WL_CONNECTED:
@@ -835,11 +839,15 @@ void loop()
           bStarted = false;
           break;
         case WL_DISCONNECTED:
-          WiFi.begin(cfg.szSSID, cfg.szSSIDPassword);
-          Serial.print("reconnect:");
-          Serial.print(cfg.szSSID);
-          Serial.print(" ");
-          Serial.println(cfg.szSSIDPassword);
+          if(--nReconnCnt == 0)
+          {
+            nReconnCnt = 5;
+            WiFi.begin(cfg.szSSID, cfg.szSSIDPassword);
+            Serial.print("reconnect:");
+            Serial.print(cfg.szSSID);
+            Serial.print(" ");
+            Serial.println(cfg.szSSIDPassword);
+          }
           break;
       }
     }
@@ -950,7 +958,7 @@ void calcTimeRemaining()
     if(nSecsToCharge > 0xFFFF)
       nSecsToCharge = 0xFFFF;
 
-    Device.setTimes(nSecsTotal, g_nSecondsRemaining, nSecsToCharge);
+    Device.setTimes(nSecsTotal, nSecondsRemaining, nSecsToCharge);
 #endif
 
   }
