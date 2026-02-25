@@ -497,6 +497,7 @@ void setup()
   Serial.begin(115200); // USB serial data rate (9600 is probably more common) Ignnored if HID is enabled
   pinMode(DIN_PIN, INPUT);
   pinMode(SCK_PIN, INPUT);
+  digitalWrite(SSR, LOW);
   pinMode(SSR, OUTPUT);
 
   cfg.init();
@@ -507,6 +508,7 @@ void setup()
   if ( cfg.szSSID[0] )
   {
     WiFi.begin(cfg.szSSID, cfg.szSSIDPassword);
+    WiFi.setTxPower(WIFI_POWER_8_5dBm); // 10, 11, 20 (reduces heat)
     WiFi.setHostname(cfg.szName);
     bConfigDone = true;
   }
@@ -843,6 +845,7 @@ void loop()
           {
             nReconnCnt = 5;
             WiFi.begin(cfg.szSSID, cfg.szSSIDPassword);
+            WiFi.setTxPower(WIFI_POWER_8_5dBm); // 10, 11, 20 (reduces heat)
             Serial.print("reconnect:");
             Serial.print(cfg.szSSID);
             Serial.print(" ");
