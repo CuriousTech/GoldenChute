@@ -29,9 +29,9 @@ SOFTWARE.
 // Partition: Default 4MB with spiffs
 
 ///////////////////////////////////////////////////
-//  Model      Volts Amps    Wh      ~98% integer
-// 1000VA/600W 25.6V 6Ah   = 153.6Wh  150
-// 1000VA/800W 25.6V 9Ah   = 230.4Wh  226
+//  Model       Volts Amps    Wh      ~98% integer
+// 1000VA/600W  25.6V 6Ah   = 153.6Wh 150
+// 1000VA/800W  25.6V 9Ah   = 230.4Wh 226
 // 1500VA/1000W 51.2V 5.8Ah= 296Wh    291 (note: 1500 & 2000 models have a USB-HID type output AFAIK)
 // 1500VA/1200W 51.2V 6Ah  = 307Wh    301   (manual is incorrect, so I'm guessing)
 // 2000VA/1600W 51.2V 9Ah  = 460.8Wh  451
@@ -828,11 +828,10 @@ void loop()
           setenv("TZ", TZ, 1);
           tzset();
           break;
-        case WL_NO_SSID_AVAIL:
-          Serial.println("No SSID avail");
-          break;
         case WL_CONNECTION_LOST:
           break;
+        case WL_NO_SSID_AVAIL:
+          Serial.println("No SSID avail"); // fall thru
         case WL_CONNECT_FAILED: // failed to connect
           Serial.println("Connect failed. Starting SmartConfig");
           WiFi.mode(WIFI_AP_STA);
