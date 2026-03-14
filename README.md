@@ -57,7 +57,7 @@ Right-click for context menu (settings, quit, clear log/chart)
 The outage and daily WH log (top right area, hidden when small) is blank until an entry is created.  Entries are comma delimited lines saved in a file in the local exe folder, named ups_log.txt (or ups_log1.txt for the 2nd instance...).  
   
 **Settings:**  
-Right-click in the window, or go to the tray, and right click the icon for the menu. Select "Settings" and enter the IP address of the ESP32 device in the format "192.168.xxx.xxx" which you can find in the Arduino IDE ports, named UPS (192.168.xxx.xxx).  Your router should also be on UPS when using this method.  
+Right-click in the window, or go to the tray, and right click the icon for the menu. Select "Settings" and enter the IP address of the ESP32 device in the format "192.168.xxx.xxx" which you can find in the Arduino IDE ports, named UPS (192.168.xxx.xxx). Up to 8 clients can be connected at once. Your router should also be on UPS when using this method.  
 If it connects, there should be a small red circle in the top left of the app. This will blink when data is received. Serial is the same.  
 COM Port (Note: using serial will cause the ESP32 to reset every time the app exits or another app accesses the COM port, which loses WH history and may get off track if charging).  
 The radio buttons allow selecting either COM or websocket.  
