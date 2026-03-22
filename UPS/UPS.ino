@@ -23,9 +23,9 @@ SOFTWARE.
 
 // Goldenmate UPS with ESP32-C3-super mini or ESP32-S3-super mini
 
-// Build with Arduino IDE 1.8.19, ESP32 2.0.14 or 3.2.0-3.3.5
-// CPU Speed: 160MHz(C3) 240MHz(S3) (Warning: These both seem to burn up at the highest clock speed)
-// USB CDC On Boot: Enabled - for serial output over USB
+// Build with Arduino IDE 1.8.19, ESP32 2.0.14 or 3.2.0-3.3.7
+// CPU Speed: 80MHz(C3) 80MHz(S3) (Warning: These both seem to burn up at the highest clock speed)
+// USB CDC On Boot: Enabled - for serial output over USB, HID doesn't matter
 // Partition: Default 4MB with spiffs
 
 ///////////////////////////////////////////////////
@@ -39,7 +39,8 @@ SOFTWARE.
 
 #define TZ  "EST5EDT,M3.2.0,M11.1.0"  // https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
 
-#include <ESPAsyncWebServer.h> // https://github.com/ESP32Async/ESPAsyncWebServer (3.7.2) and AsyncTCP (3.4.4)
+#include <WiFi.h>
+#include <ESPAsyncWebServer.h> // https://github.com/ESP32Async/ESPAsyncWebServer (3.10.1) and AsyncTCP (3.4.10)
 #include <time.h>
 #include <JsonParse.h> //https://github.com/CuriousTech/ESP-HVAC/tree/master/Libraries/JsonParse
 #include <ArduinoOTA.h>
@@ -86,6 +87,21 @@ AsyncWebServer server( 80 );
 AsyncWebSocket ws("/ws"); // access at ws://[esp ip]/ws
 AsyncWebSocket wsb("/bin"); // binary websocket for Windows app
 //AsyncWebSocket wsb2("/other"); // Add some other WebSocket for alternate needs. Duplicate the wsb references for your format
+
+const int8_t powerLevels[] = {
+    WIFI_POWER_MINUS_1dBm,
+    WIFI_POWER_2dBm,
+    WIFI_POWER_5dBm,
+    WIFI_POWER_7dBm,
+    WIFI_POWER_8_5dBm,
+    WIFI_POWER_11dBm,
+    WIFI_POWER_13dBm,
+    WIFI_POWER_15dBm,
+    WIFI_POWER_17dBm,
+    WIFI_POWER_18_5dBm,
+    WIFI_POWER_19dBm,
+    WIFI_POWER_19_5dBm, // 11
+};
 
 uint32_t WsClientID;
 uint32_t binClientCnt;
@@ -189,6 +205,7 @@ String dataJson()
   js.Var("t", (uint32_t)time(nullptr));
   js.Var("rssi", WiFi.RSSI() );
   js.Var("connected", binClientCnt);
+  js.Var("sercon", bGMFormatSerial);  // (bGMFormatSerial || otherMonitor)
   js.Var("nodata", binPayload.b.noData);
   js.Var("ppkwh", cfg.ppkw);
   if(nWhCnt)
@@ -208,8 +225,8 @@ String dataJson()
   js.Var("wcl", cfg.WarnCapLimit);
   js.Var("rcl", cfg.RemainCapLimit);
   js.Var("swt", cfg.ShutoffWattThresh);
+  js.Var("pwr", cfg.powerLevel);
   js.Array("daily", cfg.nDailyWh, 31);
-  js.Var("sercon", bGMFormatSerial);  // (bGMFormatSerial || otherMonitor)
 #if (CONFIG_TINYUSB_HID_ENABLED && USE_HID)
   js.Var("HID", 1);
 #else
@@ -224,6 +241,7 @@ String statusJson()
   js.Var("t", (uint32_t)time(nullptr));
   js.Var("rssi", WiFi.RSSI());
   js.Var("connected", binClientCnt);
+  js.Var("sercon", bGMFormatSerial);
   js.Var("AC", binPayload.b.OnAC);
   js.Var("UPS", binPayload.b.OnUPS);
   js.Var("voltsIn", binPayload.VoltsIn);
@@ -250,6 +268,7 @@ const char *jsonList1[] = {
   "wcl",
   "rcl",
   "swt",
+  "plvl", // 9
   NULL
 };
 
@@ -265,16 +284,14 @@ void parseParams(AsyncWebServerRequest *request)
     const AsyncWebParameter* p = request->getParam(i);
     String s = request->urlDecode(p->value());
 
-    uint8_t idx;
-    for(idx = 0; jsonList1[idx]; idx++)
+    for(uint8_t idx = 0; jsonList1[idx]; idx++)
       if( p->name().equals(jsonList1[idx]) )
+      {
+        int iValue = s.toInt();
+        if(s == "true") iValue = 1;
+        jsonCallback(idx, iValue, (char *)s.c_str());
         break;
-    if(jsonList1[idx])
-    {
-      int iValue = s.toInt();
-      if(s == "true") iValue = 1;
-      jsonCallback(idx, iValue, (char *)s.c_str());
-    }
+      }
   }
 }
 
@@ -344,6 +361,10 @@ void jsonCallback(int16_t iName, int iValue, char *psValue)
       break;
     case 8: // swt
       cfg.ShutoffWattThresh = iValue;
+      break;
+    case 9: // plvl
+      cfg.powerLevel = constrain(iValue, 0, 11);
+      WiFi.setTxPower((wifi_power_t)powerLevels[cfg.powerLevel]);
       break;
   }
 }
@@ -501,6 +522,8 @@ void setup()
   pinMode(SSR, OUTPUT);
 
   cfg.init();
+  if(cfg.powerLevel == 0) // remove after use
+    cfg.powerLevel = 4;  // ""
 
   WiFi.hostname(cfg.szName);
   WiFi.mode(WIFI_STA);
@@ -508,7 +531,7 @@ void setup()
   if ( cfg.szSSID[0] )
   {
     WiFi.begin(cfg.szSSID, cfg.szSSIDPassword);
-    WiFi.setTxPower(WIFI_POWER_8_5dBm); // 10, 11, 20 (reduces heat)
+    WiFi.setTxPower((wifi_power_t)powerLevels[cfg.powerLevel]);
     WiFi.setHostname(cfg.szName);
     bConfigDone = true;
   }
@@ -813,6 +836,7 @@ void loop()
     if(bConfigDone)
     {
       static uint8_t nReconnCnt = 5;
+      static bool bSmart = false;
 
       switch(WiFi.status())
       {
@@ -834,8 +858,12 @@ void loop()
           Serial.println("No SSID avail"); // fall thru
         case WL_CONNECT_FAILED: // failed to connect
           Serial.println("Connect failed. Starting SmartConfig");
-          WiFi.mode(WIFI_AP_STA);
-          WiFi.beginSmartConfig();
+          if(!bSmart)
+          {
+            bSmart = true; // this might need to be done only once
+            WiFi.mode(WIFI_AP_STA);
+            WiFi.beginSmartConfig();
+          }
           bConfigDone = false;
           bStarted = false;
           break;
@@ -844,7 +872,7 @@ void loop()
           {
             nReconnCnt = 5;
             WiFi.begin(cfg.szSSID, cfg.szSSIDPassword);
-            WiFi.setTxPower(WIFI_POWER_8_5dBm); // 10, 11, 20 (reduces heat)
+            WiFi.setTxPower((wifi_power_t)powerLevels[cfg.powerLevel]);
             Serial.print("reconnect:");
             Serial.print(cfg.szSSID);
             Serial.print(" ");
