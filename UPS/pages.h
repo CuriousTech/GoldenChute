@@ -41,9 +41,11 @@ errorTxt=[
   "High Output Voltage" // 9 " "
 ]
 
+pwrLvls=[-1,2,5,7,8.5,11,13,15,17,18.5,19,19.5]
+
 function openSocket(){
- ws=new WebSocket("ws://"+window.location.host+"/ws")
-//  ws=new WebSocket("ws://192.168.50.199/ws")
+  ws=new WebSocket("ws://"+window.location.host+"/ws")
+//  ws=new WebSocket("ws://192.168.31.118/ws")
   date = new Date()
   ws.onopen=function(evt){}
   ws.onclose=function(evt){alert("Connection closed");}
@@ -64,6 +66,8 @@ function openSocket(){
       a.WCL.value=+d.wcl
       a.RCL.value=+d.rcl
       a.SWT.value=+d.swt
+      a.PWR.value=pwrLvls[d.pwr]
+      a.level.value=d.pwr
       wmin=d.wmin
       wmax=d.wmax
       tot=0
@@ -125,6 +129,12 @@ function confirmPwr()
     setVar('power',0xABC20000)
   else if(confirm('Are you sure you want to turn the UPS off?'))
     setVar('power',0xABC20003)
+}
+
+function setPower(v)
+{
+ setVar('plvl',v)
+ a.PWR.value=pwrLvls[v]
 }
 
 function draw(){
@@ -465,6 +475,8 @@ openSocket()
 <tr><td>Shutoff Watt Thresh</td><td><input id="SWT" type=text size=4 onChange="{setVar('swt', this.value)}">W</td></tr>
 <tr><td>HID Warning</td><td><input id="WCL" type=text size=4 onChange="{setVar('wcl', this.value)}">%</td></tr>
 <tr><td>HID Shutdown</td><td><input id="RCL" type=text size=4 onChange="{setVar('rcl', this.value)}">%</td></tr>
+<tr><td>TX Power <input name="PWR" value=1 readonly type="text" size=2> </td>
+ <td> <input type="range" id="level" name="level" min="0" max="11" value=1 onchange="{setPower(this.value)}"></td></tr>
 <tr><td>PPKWH <input id="ppkwh" type=text size=4 onChange="{setVar('ppkwh',(ppkwh=+this.value*1000).toFixed() )}"> </td>
 <td><input id="myKey" name="key" type=text size=40 placeholder="password" style="width: 100px" onChange="{localStorage.setItem('key', key = document.all.myKey.value)}"></td></tr>
 </table>
