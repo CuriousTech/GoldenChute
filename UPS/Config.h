@@ -30,7 +30,8 @@ public:
   uint8_t   ShutoffWattThresh = 50;
   uint8_t   RemainCapLimit = 5;
   uint8_t   WarnCapLimit = 10;
-  uint8_t   res[13]; // change the length to force overwrite
+  int8_t    powerLevel = 3;
+  uint8_t   res[11]; // change the length to force overwrite
   uint8_t   end;
 
   uint16_t  nDailyWh[31];
