@@ -66,6 +66,6 @@ Percent to shut down: Active (red bars left of battery in the main display and t
 Note: Hibrid-sleep can wake immediately by odd USB devices if not set up properly. It should be tested before use. It will also slowly drain the battery over time.  
 Skip seconds: 0 will add data to the chart every second (total 24 hours). 1 would be 48 hours, but records peak values of 2 seconds.  
 Alerts currently just cause the window to popup and show red text over the "Input" label, such as "Serial timeout/in use" or WebSocket disconnected" with annoying audio.  
-Power off after [30] seconds: Will turn the UPS power off (cutting power to everything on it) the delayed time (15 secs to 60 mins) after the PC begins shutdown/hibernate.  
+Power off after [30] seconds: Will turn the UPS power off (cutting power to everything on it) the delayed time (15 secs to 60 mins) after the PC begins shutdown/hibernate, and also waits for the watts out to drop below the shutoff watt threshold setting on the webpage.  
  Note:The ESP will also lose power, so there's no way to remotely power it back on.  
 Hide after start causes the window to hide 4 seconds after startup.  
