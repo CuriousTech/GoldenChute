@@ -21,6 +21,9 @@ background: rgb(160,160,160);
 background: linear-gradient(0deg, rgba(160,160,160,1) 0%, rgba(239,255,255,1) 100%);
 background-clip: padding-box;
 }
+.slider {
+  width: 105px;
+}
 body{width:490px;display:block;text-align:right;font-family: Arial, Helvetica, sans-serif;}
 </style>
 <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.6.1/jquery.min.js" type="text/javascript" charset="utf-8"></script>
@@ -44,7 +47,8 @@ errorTxt=[
 pwrLvls=[-1,2,5,7,8.5,11,13,15,17,18.5,19,19.5]
 
 function openSocket(){
-  ws=new WebSocket("ws://"+window.location.host+"/ws")
+  relPath = location.href.replace(/^https?:\/\/|[^/]*$/gi, "")
+  ws = new WebSocket("ws://"+relPath+"ws")
 //  ws=new WebSocket("ws://192.168.31.118/ws")
   date = new Date()
   ws.onopen=function(evt){}
@@ -66,7 +70,7 @@ function openSocket(){
       a.WCL.value=+d.wcl
       a.RCL.value=+d.rcl
       a.SWT.value=+d.swt
-      a.PWR.value=pwrLvls[d.pwr]
+      a.PWR.value=pwrLvls[d.pwr]+' dBm'
       a.level.value=d.pwr
       wmin=d.wmin
       wmax=d.wmax
@@ -134,7 +138,7 @@ function confirmPwr()
 function setPower(v)
 {
  setVar('plvl',v)
- a.PWR.value=pwrLvls[v]
+ a.PWR.value=pwrLvls[v]+' dBm'
 }
 
 function draw(){
@@ -450,7 +454,7 @@ key=localStorage.getItem('key')
 if(key!=null) document.getElementById('myKey').value=key
 openSocket()
 }">
-<table width=278>
+<table width=280>
 <tr><td><div id='topbar'></div></td></tr>
 
 <tr><td>
@@ -458,7 +462,7 @@ openSocket()
   <tr><td><input type="button" value="RESET DISP" onClick="{setVar('restart',0)}"><input id="PO" type="button" value="POWER OFF" onClick="{confirmPwr()}"></td></tr>
 </table>
 
-<table width=278 >
+<table width=280 >
 <tr align="center"><td>
 <div id="wrapper">
 <canvas id="meter" width="270" height="105"></canvas>
@@ -468,15 +472,15 @@ openSocket()
 </div>
 </td></tr>
 </table>
-<table width=278>
+<table width=280>
 <tr><td>Last cycle: </td><td id="cycle"></td></tr>
 <tr><td>Health: </td><td id="health"></td></tr>
 <tr><td>Cycles: </td><td id="cycles"></td></tr>
 <tr><td>Shutoff Watt Thresh</td><td><input id="SWT" type=text size=4 onChange="{setVar('swt', this.value)}">W</td></tr>
 <tr><td>HID Warning</td><td><input id="WCL" type=text size=4 onChange="{setVar('wcl', this.value)}">%</td></tr>
 <tr><td>HID Shutdown</td><td><input id="RCL" type=text size=4 onChange="{setVar('rcl', this.value)}">%</td></tr>
-<tr><td>TX Power <input name="PWR" value=1 readonly type="text" size=2> </td>
- <td> <input type="range" id="level" name="level" min="0" max="11" value=1 onchange="{setPower(this.value)}"></td></tr>
+<tr><td>TX Power <input name="PWR" value=1 readonly type="text" size=4> </td>
+ <td> <input type="range" id="level" name="level" min=0 max=11 class="slider" onchange="{setPower(this.value)}"></td></tr>
 <tr><td>PPKWH <input id="ppkwh" type=text size=4 onChange="{setVar('ppkwh',(ppkwh=+this.value*1000).toFixed() )}"> </td>
 <td><input id="myKey" name="key" type=text size=40 placeholder="password" style="width: 100px" onChange="{localStorage.setItem('key', key = document.all.myKey.value)}"></td></tr>
 </table>
