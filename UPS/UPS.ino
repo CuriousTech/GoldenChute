@@ -63,7 +63,13 @@ SOFTWARE.
 #define SCK_PIN GPIO_NUM_13
 #define LED     48
 #define SSR     12
-#define USE_HID 1  // Uncomment for HID device
+//#define USE_HID 1  // Uncomment for HID device
+#elif CONFIG_IDF_TARGET_ESP32C6
+#define CS_PIN  GPIO_NUM_7
+#define DIN_PIN GPIO_NUM_6 // GPIO_NUM_8 // PCB r3
+#define SCK_PIN GPIO_NUM_4
+#define LED     8
+#define SSR     3
 #else
 static_assert(FALSE, "Set pins for new device");
 #endif
@@ -77,6 +83,7 @@ HIDPowerDevice Device;
 bool bKeyGood;
 IPAddress lastIP;
 int nWrongPass;
+int32_t nOnBattCount;
 
 int8_t nWsConnected;
 
@@ -226,6 +233,7 @@ String dataJson()
   js.Var("rcl", cfg.RemainCapLimit);
   js.Var("swt", cfg.ShutoffWattThresh);
   js.Var("pwr", cfg.powerLevel);
+  js.Var("nobeep", cfg.bNoBeep);
   js.Array("daily", cfg.nDailyWh, 31);
 #if (CONFIG_TINYUSB_HID_ENABLED && USE_HID)
   js.Var("HID", 1);
@@ -268,7 +276,9 @@ const char *jsonList1[] = {
   "wcl",
   "rcl",
   "swt",
-  "plvl", // 9
+  "plvl",
+  "bump", // 10
+  "nobeep",
   NULL
 };
 
@@ -363,8 +373,14 @@ void jsonCallback(int16_t iName, int iValue, char *psValue)
       cfg.ShutoffWattThresh = iValue;
       break;
     case 9: // plvl
-      cfg.powerLevel = constrain(iValue, 0, 11);
+      cfg.powerLevel = constrain(iValue, 0, sizeof(powerLevels) - 1);
       WiFi.setTxPower((wifi_power_t)powerLevels[cfg.powerLevel]);
+      break;
+    case 10: // bump
+      cfg.nPercentUsage += iValue;
+      break;
+    case 11:
+      cfg.bNoBeep = (iValue) ? true:false;
       break;
   }
 }
@@ -602,13 +618,13 @@ void setup()
     cfg.initialDate = mktime(&initDate);
 
     // set last cycle date
-    initDate.tm_year = 2025 - 1900; // 2025
-    initDate.tm_mon = 7 - 1; // July
-    initDate.tm_mday = 18; // day of month
+    initDate.tm_year = 2026 - 1900; // 2025
+    initDate.tm_mon = 1 - 1; // July
+    initDate.tm_mday = 6; // day of month
     cfg.lastCycleDate = mktime(&initDate);
 
-    cfg.nCycles = 2; // if you know how many cycles so far
-    cfg.nPercentUsage = 10;  // copy these last 2 values from web page to preserve them before flashing
+    cfg.nCycles = 3; // if you know how many cycles so far
+    cfg.nPercentUsage = 62;  // copy these last 2 values from web page to preserve them before flashing
 
     cfg.update();
   }
@@ -631,11 +647,10 @@ void loop()
 {
   static uint8_t hour_save, sec_save;
   static uint32_t sentMS;
-
-  ArduinoOTA.handle();
-
   static uint32_t lastMSbtn;
   static uint32_t lastMS;
+
+  ArduinoOTA.handle();
 
   // button press simulator
   if(lastMSbtn)
@@ -646,8 +661,6 @@ void loop()
       digitalWrite(SSR, LOW); // release button after 500ms (or 5.1 seconds for shutoff)
       nLongPress = 0;
       lastMSbtn = 0;
-      usageAdd(); // add up in case it's powered off
-      cfg.update(); // save data before power off
     }
   }
   if(bPushSSR) // press button, start ms timer
@@ -655,6 +668,11 @@ void loop()
     bPushSSR = false;
     digitalWrite(SSR, HIGH);
     lastMSbtn = millis();
+    if(nLongPress)
+    {
+      usageAdd(); // add up in case it's powered off
+      cfg.update(); // save data before power off
+    }
   }
 
   // Last UPS LCD segment bits captured
@@ -683,7 +701,7 @@ void loop()
 
 #if CONFIG_TINYUSB_HID_ENABLED && USE_HID
       PresentStatus ps;
-  
+
       ps.w = 0;
   
       // just in case it's not installed properly
@@ -780,6 +798,19 @@ void loop()
         nSSRsecs = 1; // and ready to turn back on
       }
     }
+    else // On battery - if nobeep option, tap the button just after start
+    {
+      nOnBattCount++;
+      s += nOnBattCount;
+      if(cfg.bNoBeep)
+      {
+        if(nOnBattCount == 3)
+        {
+           bPushSSR = true;
+           nLongPress = 0;
+        }
+      }
+    }
 
     // simulate button press every ~60s or less (anything under will reset the timeout)
     if(--nSSRsecs == 0)
@@ -857,10 +888,10 @@ void loop()
         case WL_NO_SSID_AVAIL:
           Serial.println("No SSID avail"); // fall thru
         case WL_CONNECT_FAILED: // failed to connect
-          Serial.println("Connect failed. Starting SmartConfig");
           if(!bSmart)
           {
             bSmart = true; // this might need to be done only once
+            Serial.println("Connect failed. Starting SmartConfig");
             WiFi.mode(WIFI_AP_STA);
             WiFi.beginSmartConfig();
           }
@@ -870,7 +901,7 @@ void loop()
         case WL_DISCONNECTED:
           if(--nReconnCnt == 0)
           {
-            nReconnCnt = 5;
+            nReconnCnt = 15;
             WiFi.begin(cfg.szSSID, cfg.szSSIDPassword);
             WiFi.setTxPower((wifi_power_t)powerLevels[cfg.powerLevel]);
             Serial.print("reconnect:");
@@ -1082,6 +1113,7 @@ void calcPercent()
   if(binPayload.b.OnUPS && !lastOnUPS)
   {
     nDrainStartPercent = binPayload.battPercent; // beginning of discharge
+    nOnBattCount = 0;
   }
 
   if (binPayload.b.battLevel != lvl || (binPayload.b.OnUPS && !lastOnUPS) ) // Switching to backup triggers level change to start accumulator
