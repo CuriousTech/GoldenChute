@@ -31,6 +31,7 @@ body{width:490px;display:block;text-align:right;font-family: Arial, Helvetica, s
 a=document.all
 noData=0
 bPwr=0
+nobeep=0
 errorTxt=[
   "",
   "Low Voltage", // 1
@@ -72,6 +73,8 @@ function openSocket(){
       a.SWT.value=+d.swt
       a.PWR.value=pwrLvls[d.pwr]+' dBm'
       a.level.value=d.pwr
+      nobeep=d.nobeep
+      a.NOBEEP.value=(nobeep)?" SILENT ":"BEEPING"
       wmin=d.wmin
       wmax=d.wmax
       tot=0
@@ -116,6 +119,12 @@ function topBar()
 function setVar(varName, value)
 {
   ws.send('{"key":"'+a.myKey.value+'","'+varName+'":'+value+'}')
+}
+function silence()
+{
+  nobeep=!nobeep
+  a.NOBEEP.value=(nobeep)?" SILENT ":"BEEPING"
+  setVar('nobeep',nobeep)
 }
 
 function shutdown()
@@ -458,7 +467,7 @@ openSocket()
 <tr><td><div id='topbar'></div></td></tr>
 
 <tr><td>
-  <input type="button" value="SHUTDOWN" onClick="{shutdown()}"> <input type="button" value="HIBERNATE" onClick="{hibernate()}"></td></tr> 
+  <input id="NOBEEP" type="button" value="BEEPING" onClick="{silence()}"> <input type="button" value="SHUTDOWN" onClick="{shutdown()}"> <input type="button" value="HIBERNATE" onClick="{hibernate()}"></td></tr> 
   <tr><td><input type="button" value="RESET DISP" onClick="{setVar('restart',0)}"><input id="PO" type="button" value="POWER OFF" onClick="{confirmPwr()}"></td></tr>
 </table>
 
