@@ -31,7 +31,8 @@ public:
   uint8_t   RemainCapLimit = 5;
   uint8_t   WarnCapLimit = 10;
   int8_t    powerLevel = 3;
-  uint8_t   res[11]; // change the length to force overwrite
+  bool      bNoBeep = false;
+  uint8_t   res[10]; // change the length to force overwrite
   uint8_t   end;
 
   uint16_t  nDailyWh[31];
