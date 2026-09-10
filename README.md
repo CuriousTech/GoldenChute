@@ -21,7 +21,7 @@ I beleve the first model had a push-on/push-off button and the display stayed on
 -  M & F [JST-XH](https://www.aliexpress.us/item/3256807274583113.html?spm=a2g0o.cart.0.0.760338daO0zG3O&mp=1&pdp_npi=6%40dis%21USD%21USD%202.10%21USD%201.98%21%21USD%201.98%21%21%21%402101eee917741421945647915ebcc8%2112000040853255025%21ct%21US%212963218209%21%211%210%21&_gl=1*f1exaa*_gcl_dc*R0NMLjE3NzQxNDEyNTAuQ2p3S0NBandnX25OQmhBR0Vpd0FpWVBZQXh0Mjd1cmt4TEZra2hWUzNJaTBkMndFTUF6X0EwWXlkS3R0ZHF0MEk2Zjl1ejlzUU9NNlJCb0NodFlRQXZEX0J3RQ..*_gcl_au*OTY3NzU3MDEwLjE3NzQxNDIxOTU.*_ga*MTI2NzEwNjE0LjE3NzQxNDIxOTU.*_ga_VED1YSGNC7*czE3NzQxNDIxOTQkbzEkZzAkdDE3NzQxNDIxOTQkajYwJGwwJGgw&gatewayAdapt=glo2usa) (This one has wires to place it closer to the side for better signal) 7P 2.54mm, or 7P 0.1" pinheader  
 -  2P 2.54mm/0.1" connector M  
 -  2P 2.54mm/0.1" connector F + 2 wires (3-4 inches) Note: The button is non-polarized (The AliExpress above didn't fit the 2 pin) Dupont will work if nothing else.  
--  V2016B heatsink - unnecessary, and may not be enough room unless flipped (swap CS and Data pins in code)  
+-  r5 board: 3x BSS136 (MOSFET), 3x 10K resistors  
   
 ![UPS Board](assets/ups.png)  
 ![Front panel](assets/front_panel.jpg)  
