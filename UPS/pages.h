@@ -89,7 +89,10 @@ function openSocket(){
       upsState=d
       noData=+d.nodata
       shutoffDelay=+d.so
-      if(shutoffDelay)
+      powered=d.pwrd
+      if(powered==0)
+       a.PO.value='POWER ON'
+      else if(shutoffDelay)
        a.PO.value=timeRem(shutoffDelay)+' CANCEL'
       else
        a.PO.value='POWER OFF'
@@ -175,7 +178,7 @@ function draw(){
     c.font='20pt sans-serif'
     c.textAlign="left"
     c.textBaseline="middle"
-    c.fillText('NO DISPLAY DATA', 14, 20)
+    c.fillText(powered?'UPS OFF':'NO DISPLAY DATA', 14, 20)
     return
   }
   c.textAlign="right"
