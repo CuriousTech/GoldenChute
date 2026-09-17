@@ -55,21 +55,25 @@ SOFTWARE.
 #define DIN_PIN GPIO_NUM_6 // GPIO_NUM_8 // PCB r3
 #define SCK_PIN GPIO_NUM_4
 #define LED     8
-#define SSR     3
+#define BMS_BTN 3
+#define UPS_BTN 2
 // ESP32-S3 on r3 PCB
 #elif CONFIG_IDF_TARGET_ESP32S3
 #define CS_PIN  GPIO_NUM_1
 #define DIN_PIN GPIO_NUM_2
 #define SCK_PIN GPIO_NUM_13
 #define LED     48
-#define SSR     12
+#define BMS_BTN 12
+#define UPS_BTN 11
 //#define USE_HID 1  // Uncomment for HID device
+// ESP32-C6
 #elif CONFIG_IDF_TARGET_ESP32C6
 #define CS_PIN  GPIO_NUM_7
 #define DIN_PIN GPIO_NUM_6 // GPIO_NUM_8 // PCB r3
 #define SCK_PIN GPIO_NUM_4
 #define LED     8
-#define SSR     3
+#define BMS_BTN 3
+#define UPS_BTN 2
 #else
 static_assert(FALSE, "Set pins for new device");
 #endif
@@ -83,8 +87,7 @@ HIDPowerDevice Device;
 bool bKeyGood;
 IPAddress lastIP;
 int nWrongPass;
-int32_t nOnBattCount;
-
+uint8_t nOnBattCount;
 int8_t nWsConnected;
 
 // The battery levels for each bar and blinking bar
@@ -123,7 +126,8 @@ bool bConfigDone; // EspTouch config
 bool bStarted; // WiFi started
 bool bRequestSD = false; // request PC shutdown
 uint32_t nLongPress = 0; // Long press the power button
-bool bPushSSR = false;
+bool bPushBMS_SSR = false;
+bool bPushUPS_SSR = false;
 
 bool bGMFormatSerial;
 uint32_t spiMS = 10000000;
@@ -152,7 +156,7 @@ struct flagBits{
   uint16_t battDisplay : 5; // Raw bits 0=top 4=bottom (0 and 4 blink)
   uint16_t needCycle : 1; // if it's been over 90 days with no 100% cycle
   uint16_t shuttingOff : 1; // shutoff timer is running
-  uint16_t reserved : 1;
+  uint16_t powered : 1; // UPS is powered on
 };
 
 struct upsData
@@ -263,6 +267,7 @@ String statusJson()
   js.Var("nodata", binPayload.b.noData);
   js.Var("secsrem", nSecondsRemaining);
   js.Var("so", nShutoffDelay);
+  js.Var("pwrd", binPayload.b.powered);
   return js.Close();
 }
 
@@ -534,8 +539,10 @@ void setup()
   Serial.begin(115200); // USB serial data rate (9600 is probably more common) Ignnored if HID is enabled
   pinMode(DIN_PIN, INPUT);
   pinMode(SCK_PIN, INPUT);
-  digitalWrite(SSR, LOW);
-  pinMode(SSR, OUTPUT);
+  digitalWrite(BMS_BTN, LOW);
+  pinMode(BMS_BTN, OUTPUT);
+  digitalWrite(UPS_BTN, LOW);
+  pinMode(UPS_BTN, OUTPUT);
 
   cfg.init();
   if(cfg.powerLevel == 0) // remove after use
@@ -588,7 +595,8 @@ void setup()
   ArduinoOTA.setHostname(cfg.szName);
   ArduinoOTA.begin();
   ArduinoOTA.onStart([]() {
-    digitalWrite(SSR, LOW); // ensure button isn't being pressed
+    digitalWrite(BMS_BTN, LOW); // ensure button isn't being pressed
+    digitalWrite(UPS_BTN, LOW);
     cfg.update();
     alert("OTA Update Started");
     ws.closeAll();
@@ -630,6 +638,7 @@ void setup()
   }
 
   binPayload.b.noData = 1; // start out with a fail
+  binPayload.b.powered = 1; // assume UPS is on
 
 #if CONFIG_TINYUSB_HID_ENABLED && USE_HID
   const manufactDate mfd ={
@@ -648,32 +657,52 @@ void loop()
   static uint8_t hour_save, sec_save;
   static uint32_t sentMS;
   static uint32_t lastMSbtn;
-  static uint32_t lastMS;
+  static uint32_t lastMSbtn2;
+  static uint32_t lastMS1sec;
 
   ArduinoOTA.handle();
 
-  // button press simulator
+  // BMS button press simulator
   if(lastMSbtn)
   {
-    uint32_t ms = (nLongPress == 0xABC2) ? 5100:500;
-    if(millis() - lastMSbtn > ms)
+    if(millis() - lastMSbtn > 500)
     {
-      digitalWrite(SSR, LOW); // release button after 500ms (or 5.1 seconds for shutoff)
-      nLongPress = 0;
+      digitalWrite(BMS_BTN, LOW); // release button after 500ms
       lastMSbtn = 0;
     }
   }
-  if(bPushSSR) // press button, start ms timer
+  if(bPushBMS_SSR) // press button, start ms timer
   {
-    bPushSSR = false;
-    digitalWrite(SSR, HIGH);
+    bPushBMS_SSR = false;
+    digitalWrite(BMS_BTN, HIGH);
     lastMSbtn = millis();
+  }
+
+  // UPS button press simulator
+  if(lastMSbtn2)
+  {
+    uint32_t ms = (nLongPress == 0xABC2) ? 5100:500;
+    if(millis() - lastMSbtn2 > ms)
+    {
+      digitalWrite(UPS_BTN, LOW); // release button after 500ms (or 5.1 seconds for shutoff)
+      if(nLongPress && binPayload.b.powered) // has been shut off
+        binPayload.b.powered = 0;
+      nLongPress = 0;
+      lastMSbtn2 = 0;
+    }
+  }
+  if(bPushUPS_SSR) // press button, start ms timer
+  {
+    bPushUPS_SSR = false;
+    digitalWrite(UPS_BTN, HIGH);
+    lastMSbtn2 = millis();
     if(nLongPress)
     {
       usageAdd(); // add up in case it's powered off
       cfg.update(); // save data before power off
     }
   }
+
 
   // Last UPS LCD segment bits captured
   if(bReady)
@@ -687,8 +716,16 @@ void loop()
       calcPercent();
       calcTimeRemaining();
       calcMinMax();
+/*
+      if(!binPayload.b.powered && binPayload.b.OnUPS == 0) // power returned
+      {
+        nLongPress = 0xABC2;
+        bPushUPS_SSR = true;
+      }
+*/  
+      binPayload.b.powered = 1;
 
-      binPayload.b.shuttingOff = (nLongPress) ? 1:0;
+      binPayload.b.shuttingOff = (nLongPress && binPayload.b.powered) ? 1:0;
 
       checksumData(); // prepare it for transmit
 
@@ -745,9 +782,9 @@ void loop()
     }
   }
 
-  if(millis() - lastMS >= 1000 && lastMSbtn == 0) // only do stuff once per second and not while button is being pressed
+  if(millis() - lastMS1sec >= 1000 && lastMSbtn == 0) // only do stuff once per second and not while button is being pressed
   {
-    lastMS = millis();
+    lastMS1sec = millis();
     getLocalTime(&lTime); // used globally (!first call can block for several seconds)
 
     if(binPayload.b.OnUPS && nSecondsRemaining) // make it count down
@@ -778,7 +815,7 @@ void loop()
         }
         else
         {
-          bPushSSR = true;
+          bPushBMS_SSR = true;
         }
       }
     }
@@ -800,13 +837,13 @@ void loop()
     }
     else // On battery - if nobeep option, tap the button just after start
     {
-      nOnBattCount++;
-      s += nOnBattCount;
+      if(nOnBattCount < 10)
+        nOnBattCount++;
       if(cfg.bNoBeep)
       {
         if(nOnBattCount == 3)
         {
-           bPushSSR = true;
+           bPushUPS_SSR = true;
            nLongPress = 0;
         }
       }
@@ -840,7 +877,7 @@ void loop()
 #endif
         }
         bRestartingDisplay = false;
-        bPushSSR = true;
+        bPushBMS_SSR = true;
       }
       nSSRsecs = 58;
     }
@@ -1028,7 +1065,7 @@ void calcTimeRemaining()
 // set mix/max every reading
 void calcMinMax()
 {
-  if(lTime.tm_year < 124) // invalid
+  if(lTime.tm_year < 126) // invalid
     return;
 
  if(nWattMin[lTime.tm_hour] == 0)
@@ -1187,20 +1224,20 @@ void checkSerial()
     // The Goldenamte Windows app will send this:
     if(bufIdx >= 4)
     {
-      if( buffer[0] == 0xAA && buffer[1] == 'G' && buffer[2] == 'M' && buffer[3] == 0)
+      if( buffer[0] == 0xAA && buffer[1] == 'G' && buffer[2] == 'M' && buffer[3] == 0) // set to binary data
       {
         bGMFormatSerial = true;
         nShutoffDelay = 0; // cancel shut down if there is one
         nLongPress = 0;
       }
-      else if( buffer[0] == 0xAA && buffer[1] == 'W' && buffer[2] == 'H' && buffer[3] == 0)
+      else if( buffer[0] == 0xAA && buffer[1] == 'W' && buffer[2] == 'H' && buffer[3] == 0) // request for hourly data
       {
         hourlyWh.head = 0x00DEBCAA;
         if(nWhCnt)
           hourlyWh.now = nWattsAccumHr / nWhCnt; // current this hour
         Serial.write((uint8_t*)&hourlyWh, sizeof(hourlyWh));
       }
-      else if( buffer[0] == 0xAA && buffer[1] == 'W' && buffer[2] == 'H' && buffer[3] == 'D')
+      else if( buffer[0] == 0xAA && buffer[1] == 'W' && buffer[2] == 'H' && buffer[3] == 'D') // request for daily data
       {
         uint32_t binData[33];
         binData[0] = 0x00DEBCAB;
