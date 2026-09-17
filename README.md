@@ -21,8 +21,8 @@ I beleve the first model had a push-on/push-off button and the display stayed on
 -  M & F [JST-XH](https://www.aliexpress.us/item/3256807274583113.html) (This one has wires to place it closer to the side for better signal) 7P 2.54mm, or 7P 0.1" pinheader  
 -  2P 2.54mm/0.1" connector M  
 -  2P 2.54mm/0.1" connector F + 2 wires (3-4 inches) Note: The button is non-polarized (The AliExpress above didn't fit the 2 pin) Dupont will work if nothing else.  
--  1x 18650 cell and [holder](https://www.aliexpress.us/item/3256808726723157.html) for battery power on the ESP32. Solder the wires on the back of the ESP32 first.
--  r5 board: 3x BSS138 (MOSFET), 3x 10K resistors, and another AQY282S + 470 resistor. This is still an untested board. The addition of the SSR is because the front button is DPST. One side is for the BMS (display control and beeper). The other side is for the UPS, for turning off and on. Some models have separate buttons for this function, and may have different input timings.
+-  1x 18650 cell and [holder](https://www.aliexpress.us/item/3256808726723157.html) for battery power on the ESP32. Solder the wires on the back of the ESP32 first.  
+-  r5 board: 3x BSS138 (MOSFET), 3x 10K resistors, and another AQY282S + 470 resistor. This is still an untested board. The addition of the SSR is because the front button is DPST. One side is for the BMS (display control). The other side is for the UPS (powering on/off and beeper mute). Some models have separate buttons for this function, and may have different input timings.  
   
 ![UPS Board](assets/ups.png)  
 ![Front panel](assets/front_panel.jpg)  
