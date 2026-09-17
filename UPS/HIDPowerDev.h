@@ -105,7 +105,7 @@ private:
   uint8_t _RemainCapLimit = 5;
   uint8_t _WarnCapLimit = 10;
   uint16_t _nCycleCount = 1;
-  uint16_t _nVolts;
+  uint16_t _nVolts = 10*120;
   uint16_t _nTimeToFull = 60*60;
   uint16_t _nTimeToEmpty = 60*60;
   uint16_t _nTimeRemain = 60*60;
