@@ -141,7 +141,7 @@ function hibernate()
 
 function confirmPwr()
 {
-  if(shutoffDelay)
+  if(shutoffDelay || powered == 0)
     setVar('power',0xABC20000)
   else if(confirm('Are you sure you want to turn the UPS off?'))
     setVar('power',0xABC20003)
