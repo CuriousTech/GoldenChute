@@ -355,12 +355,12 @@ void jsonCallback(int16_t iName, int iValue, char *psValue)
     case 4: // ppkwh
       cfg.ppkw = iValue;
       break;
-    case 5: // power
+    case 5: // power (0xABC20000 can be used to power on or cancel power off)
       nShutoffDelay = nLongPress & 0xFFFF;
-      if(nShutoffDelay == 0)
+      if(nShutoffDelay == 0 && binPayload.b.powered)
          nLongPress = 0; // cancel
       else
-         nLongPress = iValue >> 16; // rando num to make it safer
+         nLongPress = iValue >> 16; // random num to make it safer
       break;
     case 6: // wcl
       cfg.WarnCapLimit = constrain(iValue, 5, 90);
@@ -685,8 +685,7 @@ void loop()
     if(millis() - lastMSbtn2 > ms)
     {
       digitalWrite(UPS_BTN, LOW); // release button after 500ms (or 5.1 seconds for shutoff)
-      if(nLongPress && binPayload.b.powered) // has been shut off
-        binPayload.b.powered = 0;
+      if(nLongPress) binPayload.b.powered = !binPayload.b.powered;
       nLongPress = 0;
       lastMSbtn2 = 0;
     }
@@ -696,7 +695,7 @@ void loop()
     bPushUPS_SSR = false;
     digitalWrite(UPS_BTN, HIGH);
     lastMSbtn2 = millis();
-    if(nLongPress)
+    if(nLongPress && binPayload.b.powered)
     {
       usageAdd(); // add up in case it's powered off
       cfg.update(); // save data before power off
