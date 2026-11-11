@@ -32,6 +32,7 @@ a=document.all
 noData=0
 bPwr=0
 nobeep=0
+suspended=0
 errorTxt=[
   "",
   "Low Voltage", // 1
@@ -50,7 +51,7 @@ pwrLvls=[-1,2,5,7,8.5,11,13,15,17,18.5,19,19.5]
 function openSocket(){
   relPath = location.href.replace(/^https?:\/\/|[^/]*$/gi, "")
   ws = new WebSocket("ws://"+relPath+"ws")
-//  ws=new WebSocket("ws://192.168.31.118/ws")
+//  ws=new WebSocket("ws://192.168.31.117/ws")
   date = new Date()
   ws.onopen=function(evt){}
   ws.onclose=function(evt){alert("Connection closed");}
@@ -61,6 +62,7 @@ function openSocket(){
   {
     case 'state':
       dt=new Date(d.t*1000)
+      isHID=+d.HID
       topBar()
       dtc=new Date(d.cycledate*1000)
       a.cycle.innerHTML=((+d.nc)?'<span style=\"color: red;\">':'')+dtc.getFullYear()+'/'+(dtc.getMonth()+1)+'/'+dtc.getDate()
@@ -74,7 +76,7 @@ function openSocket(){
       a.PWR.value=pwrLvls[d.pwr]+' dBm'
       a.level.value=d.pwr
       nobeep=d.nobeep
-      a.NOBEEP.value=(nobeep)?" SILENT ":"BEEPING"
+      a.NOBEEP.value=(nobeep)?"SILENCE":"BEEPING"
       wmin=d.wmin
       wmax=d.wmax
       tot=0
@@ -89,13 +91,12 @@ function openSocket(){
       upsState=d
       noData=+d.nodata
       shutoffDelay=+d.so
-      powered=d.pwrd
-      if(powered==0)
-       a.PO.value='POWER ON'
-      else if(shutoffDelay)
+      suspended=+d.sus
+      if(shutoffDelay)
        a.PO.value=timeRem(shutoffDelay)+' CANCEL'
       else
        a.PO.value='POWER OFF'
+      a.HIBE.value=(isHID && suspended)?'WAKE':'HIBERNATE'
       draw()
       break
   }
@@ -104,7 +105,7 @@ function openSocket(){
 
 function topBar()
 {
-  if(+d.HID && +d.connected)
+  if(isHID && +d.connected)
     conn = "HID+WiFi Connect"
   else if(+d.connected && +d.sercon)
     conn = "WiFi+Ser Connect"
@@ -112,7 +113,7 @@ function topBar()
     conn = "WiFi Connected"
   else if(+d.sercon)
     conn = "Ser Connected"
-  else if(+d.HID)
+  else if(isHID)
     conn = "HID Connected"
   else
     conn = "No Connection"
@@ -126,7 +127,7 @@ function setVar(varName, value)
 function silence()
 {
   nobeep=!nobeep
-  a.NOBEEP.value=(nobeep)?" SILENT ":"BEEPING"
+  a.NOBEEP.value=(nobeep)?"SILENCE":"BEEPING"
   setVar('nobeep',nobeep)
 }
 
@@ -141,7 +142,7 @@ function hibernate()
 
 function confirmPwr()
 {
-  if(shutoffDelay || powered == 0)
+  if(shutoffDelay)
     setVar('power',0xABC20000)
   else if(confirm('Are you sure you want to turn the UPS off?'))
     setVar('power',0xABC20003)
@@ -178,7 +179,7 @@ function draw(){
     c.font='20pt sans-serif'
     c.textAlign="left"
     c.textBaseline="middle"
-    c.fillText(powered?'UPS OFF':'NO DISPLAY DATA', 14, 20)
+    c.fillText('NO DISPLAY DATA', 14, 20)
     return
   }
   c.textAlign="right"
@@ -470,7 +471,7 @@ openSocket()
 <tr><td><div id='topbar'></div></td></tr>
 
 <tr><td>
-  <input id="NOBEEP" type="button" value="BEEPING" onClick="{silence()}"> <input type="button" value="SHUTDOWN" onClick="{shutdown()}"> <input type="button" value="HIBERNATE" onClick="{hibernate()}"></td></tr> 
+  <input id="NOBEEP" type="button" value="BEEPING" onClick="{silence()}"> <input type="button" value="SHUTDOWN" onClick="{shutdown()}"> <input type="button" value="HIBERNATE" id="HIBE" onClick="{hibernate()}"></td></tr> 
   <tr><td><input type="button" value="RESET DISP" onClick="{setVar('restart',0)}"><input id="PO" type="button" value="POWER OFF" onClick="{confirmPwr()}"></td></tr>
 </table>
 
