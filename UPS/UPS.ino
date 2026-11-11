@@ -23,10 +23,12 @@ SOFTWARE.
 
 // Goldenmate UPS with ESP32-C3-super mini or ESP32-S3-super mini
 
-// Build with Arduino IDE 1.8.19, ESP32 2.0.14 or 3.2.0-3.3.7
-// CPU Speed: 80MHz(C3) 80MHz(S3) (Warning: These both seem to burn up at the highest clock speed)
-// USB CDC On Boot: Enabled - for serial output over USB, HID doesn't matter
-// Partition: Default 4MB with spiffs
+//  Build with Arduino IDE 1.8.19, ESP32 2.0.14 or 3.2.0-3.3.7
+//  CPU Speed: 80MHz(C3) 80MHz(S3) (Warning: These both seem to burn up at the highest clock speed)
+//  Partition: Default 4MB with spiffs
+//  USB Mode: USB-OTG (TinyUSB)
+//  USB CDC On Boot: Enabled (This keeps Serial routed to the native USB port)
+//  Upload Mode: USB-OTG CDC (TinyUSB)
 
 ///////////////////////////////////////////////////
 //  Model       Volts Amps    Wh      ~98% integer
@@ -45,6 +47,9 @@ SOFTWARE.
 #include <JsonParse.h> //https://github.com/CuriousTech/ESP-HVAC/tree/master/Libraries/JsonParse
 #include <ArduinoOTA.h>
 #include <ESPmDNS.h>
+#include <WiFiUdp.h>
+#include "lwip/etharp.h"
+#include "lwip/ip4_addr.h"
 #include "Config.h"
 #include "pages.h"
 #include "jsonstring.h"
@@ -52,7 +57,7 @@ SOFTWARE.
 // ESP32-C3 on r2 PCB
 #if CONFIG_IDF_TARGET_ESP32C3
 #define CS_PIN  GPIO_NUM_7
-#define DIN_PIN GPIO_NUM_6 // GPIO_NUM_8 // PCB r3
+#define DIN_PIN GPIO_NUM_8 // PCB r3
 #define SCK_PIN GPIO_NUM_4
 #define LED     8
 #define BMS_BTN 3
@@ -65,11 +70,11 @@ SOFTWARE.
 #define LED     48
 #define BMS_BTN 12
 #define UPS_BTN 11
-//#define USE_HID 1  // Uncomment for HID device
+#define USE_HID 1  // Uncomment for HID device
 // ESP32-C6
 #elif CONFIG_IDF_TARGET_ESP32C6
 #define CS_PIN  GPIO_NUM_7
-#define DIN_PIN GPIO_NUM_6 // GPIO_NUM_8 // PCB r3
+#define DIN_PIN GPIO_NUM_6
 #define SCK_PIN GPIO_NUM_4
 #define LED     8
 #define BMS_BTN 3
@@ -82,6 +87,28 @@ static_assert(FALSE, "Set pins for new device");
 #if CONFIG_TINYUSB_HID_ENABLED && USE_HID
 #include "HIDPowerDev.h"
 HIDPowerDevice Device;
+
+// Track the PC's power state
+static bool host_is_suspended = false;
+
+extern "C" {
+    bool tud_suspended(void);
+    bool tud_remote_wakeup(void);
+}
+// --------------------------------------------------------------------+
+// TinyUSB Core Hook-ins
+// --------------------------------------------------------------------+
+// These native TinyUSB functions are called automatically when the 
+// host computer sleeps or wakes.
+
+extern "C" void tud_suspend_cb(bool remote_wakeup_en) {
+  (void) remote_wakeup_en;
+  host_is_suspended = true;
+}
+
+extern "C" void tud_resume_cb(void) {
+  host_is_suspended = false;
+}
 #endif
 
 bool bKeyGood;
@@ -128,6 +155,8 @@ bool bRequestSD = false; // request PC shutdown
 uint32_t nLongPress = 0; // Long press the power button
 bool bPushBMS_SSR = false;
 bool bPushUPS_SSR = false;
+bool bSendWoL = false; // trigger for sending WoL
+uint8_t macAddr[6]; // saved address from bin websocket
 
 bool bGMFormatSerial;
 uint32_t spiMS = 10000000;
@@ -209,7 +238,7 @@ uint8_t battHealth(void);
 void calcMinMax(void);
 void usageAdd(void);
 
-String dataJson()
+String stateJson()
 {
   jsonString js("state");
 
@@ -247,7 +276,7 @@ String dataJson()
   return js.Close();
 }
 
-String statusJson()
+String dataJson()
 {
   jsonString js("data");
   js.Var("t", (uint32_t)time(nullptr));
@@ -268,6 +297,9 @@ String statusJson()
   js.Var("secsrem", nSecondsRemaining);
   js.Var("so", nShutoffDelay);
   js.Var("pwrd", binPayload.b.powered);
+#if (CONFIG_TINYUSB_HID_ENABLED && USE_HID)
+  js.Var("sus", host_is_suspended);
+#endif
   return js.Close();
 }
 
@@ -328,13 +360,18 @@ void jsonCallback(int16_t iName, int iValue, char *psValue)
         bKeyGood = true;
       break;
     case 1: // hibernate
+#if (CONFIG_TINYUSB_HID_ENABLED && USE_HID)
+      if(host_is_suspended || tud_suspended())
+      {
+        tud_remote_wakeup();
+      }
+      else
+#endif
       {
         static char data[] = "HIBR";
         wsb.binaryAll(data, 4);
-#if !(CONFIG_TINYUSB_HID_ENABLED && USE_HID)
         static uint8_t data2[] = {0xAB, 'H','I','B','R'};
         Serial.write(data2, 5);
-#endif
       }
       break;
     case 2: // shutdown
@@ -343,10 +380,9 @@ void jsonCallback(int16_t iName, int iValue, char *psValue)
         wsb.binaryAll(data, 4);
 #if CONFIG_TINYUSB_HID_ENABLED && USE_HID
         bRequestSD = true;
-#else
+#endif
         static uint8_t data2[] = {0xAB, 'S','H','D','N'};
         Serial.write(data2, 5);
-#endif
       }
       break;
     case 3: // restart
@@ -384,7 +420,7 @@ void jsonCallback(int16_t iName, int iValue, char *psValue)
     case 10: // bump
       cfg.nPercentUsage += iValue;
       break;
-    case 11:
+    case 11: // nobeep
       cfg.bNoBeep = (iValue) ? true:false;
       break;
   }
@@ -393,7 +429,7 @@ void jsonCallback(int16_t iName, int iValue, char *psValue)
 void sendState()
 {
   if(nWsConnected)
-    ws.textAll(dataJson());
+    ws.textAll(stateJson());
 }
 
 void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len)
@@ -403,7 +439,7 @@ void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventT
   {
     case WS_EVT_CONNECT:      //client connected
       client->keepAlivePeriod(50);
-      client->text( statusJson() );
+      client->text( stateJson() );
       client->text( dataJson() );
       nWsConnected++;
       break;
@@ -441,6 +477,7 @@ void onBinEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEvent
       client->binary((uint8_t*)&binPayload, sizeof(binPayload));
       nShutoffDelay = 0; // cancel shut down if there is one
       nLongPress = 0;
+      resolveAndSaveMac(client->remoteIP()); // get mac address for wake-on-lan
       break;
     case WS_EVT_DISCONNECT:    //client disconnected
       if(binClientCnt)
@@ -576,7 +613,7 @@ void setup()
   });
   server.on( "/status", HTTP_GET | HTTP_POST, [](AsyncWebServerRequest *request){
     parseParams(request);
-    request->send( 200, "text/json", statusJson() );
+    request->send( 200, "text/json", dataJson() );
   });
   server.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest *request){
     AsyncWebServerResponse *response = request->beginResponse_P(200, "image/x-icon", favicon, sizeof(favicon));
@@ -649,7 +686,55 @@ void setup()
   Device.setMfgDate(mfd); // Manufactured date: June 1, 2025
   Device.setCapLimits(cfg.RemainCapLimit, cfg.WarnCapLimit);
   Device.begin();
+  USB.begin();
 #endif
+}
+
+void resolveAndSaveMac(IPAddress ip)
+{
+  // 1. Send a dummy UDP packet to trigger an ARP request on the network
+  WiFiUDP udp;
+  udp.beginPacket(ip, 9);
+  udp.write((uint8_t)0x00);
+  udp.endPacket();
+
+  delay(200); // Give the PC a moment to reply to the ARP request
+
+  // 2. Query the lwIP ARP table
+  ip4_addr_t lwip_ip;
+  IP4_ADDR(&lwip_ip, ip[0], ip[1], ip[2], ip[3]);
+  
+  struct eth_addr* eth_ret = nullptr;
+  const ip4_addr_t* ip_ret = nullptr;
+  struct netif* netif_default = netif_list; // Primary network interface
+
+  if (etharp_find_addr(netif_default, &lwip_ip, &eth_ret, &ip_ret) >= 0)
+  {
+    memcpy(macAddr, eth_ret->addr, 6);
+  }
+}
+
+void sendMagicPacket(void)
+{
+  WiFiUDP udp;
+  byte magicPacket[102];
+
+  // First 6 bytes are 0xFF
+  for (int i = 0; i < 6; i++)
+    magicPacket[i] = 0xFF;
+
+  // Followed by 16 repetitions of the target MAC address
+  for (int i = 1; i <= 16; i++)
+    for (int j = 0; j < 6; j++)
+      magicPacket[i * 6 + j] = macAddr[j];
+
+  // Broadcast to subnet on UDP port 9
+  IPAddress broadcastIP = WiFi.localIP();
+  broadcastIP[3] = 255; // Assumes standard /24 subnet mask (255.255.255.0)
+
+  udp.beginPacket(broadcastIP, 9);
+  udp.write(magicPacket, sizeof(magicPacket));
+  udp.endPacket();
 }
 
 void loop()
@@ -728,7 +813,7 @@ void loop()
 
       checksumData(); // prepare it for transmit
 
-      ws.textAll( statusJson() ); // send to web page or other websocket clients
+      ws.textAll( dataJson() ); // send to web page or other websocket clients
 
       if(binClientCnt) // send to Windows Goldenchute client(s) over WiFi
       {
@@ -754,7 +839,7 @@ void loop()
       ps.b.ShutdownRequested = bRequestSD;
       bRequestSD = false;
       Device.SetPresentStatus(ps.w, percent, binPayload.VoltsOut);
-#else
+#endif
       if(bGMFormatSerial)
       {
         Serial.write((uint8_t*)&binPayload, sizeof(binPayload) );
@@ -777,7 +862,6 @@ void loop()
         s += binPayload.battPercent;
         Serial.println(s);
       }
-#endif
     }
   }
 
@@ -864,7 +948,6 @@ void loop()
             wsb.binaryAll((uint8_t*)&binPayload, sizeof(binPayload));
           }
 
-#if !(CONFIG_TINYUSB_HID_ENABLED && USE_HID)
           if(bGMFormatSerial) // binary over serial
           {
             Serial.write((uint8_t*)&binPayload, sizeof(binPayload) );
@@ -873,12 +956,17 @@ void loop()
           {
             Serial.println("NODATA");
           }
-#endif
         }
         bRestartingDisplay = false;
         bPushBMS_SSR = true;
       }
       nSSRsecs = 58;
+    }
+
+    if(bSendWoL && WiFi.status() == WL_CONNECTED)
+    {
+      bSendWoL = false;
+      sendMagicPacket(); // WoL over WiFi
     }
 
     // send some basic info to web page (keepalive) if no other data sent recently
@@ -1155,6 +1243,7 @@ void calcPercent()
   if (binPayload.b.battLevel != lvl || (binPayload.b.OnUPS && !lastOnUPS) ) // Switching to backup triggers level change to start accumulator
   {
     lvl = binPayload.b.battLevel;
+    bSendWoL = false; // cancel WoL if true
     levelChange();
   }
   else if (binPayload.b.OnUPS == 0 && lastOnUPS) // Switching off battery
@@ -1162,6 +1251,17 @@ void calcPercent()
     bNeedRestart = true; // sometimes the display glitches. Allowing it to timeout and restart causes inititialize commands to be resent
     usageAdd();
     cfg.update();
+
+    if(macAddr[0])
+      bSendWoL = true;
+
+#if (CONFIG_TINYUSB_HID_ENABLED && USE_HID) // try to wake PC
+    if(host_is_suspended || tud_suspended())
+    {
+      tud_remote_wakeup();
+    }
+#endif
+  
   }
 
   int16_t nDays = (time(nullptr) - cfg.lastCycleDate) / (3600*24);
@@ -1212,7 +1312,6 @@ void calcPercent()
 // Check for incoming serial data
 void checkSerial()
 {
-#if !(CONFIG_TINYUSB_HID_ENABLED && USE_HID)
   static uint8_t buffer[8];
   static uint8_t bufIdx = 0;
 
@@ -1266,7 +1365,6 @@ void checkSerial()
       bufIdx = 0;
     }
   }
-#endif
 }
 
 bool decodeSegments(upsData& udata)
